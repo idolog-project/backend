@@ -12,6 +12,12 @@ enum AuthProvider {
   GOOGLE
 }
 
+enum LocationCategory {
+  MV_SPOT
+  CAFE
+  PHOTO_SPOT
+}
+
 model User {
   id                BigInt       @id @default(autoincrement())
   email             String       @unique
@@ -24,4 +30,74 @@ model User {
   provider          AuthProvider
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
+}
+
+/**
+ * Excel의 제목 컬럼(아티스트명)을 기준으로 생성하는 아이돌/아티스트입니다.
+ */
+model Idol {
+  id          BigInt       @id @default(autoincrement())
+  name        String       @unique
+  agency      String?
+  imageUrl    String?
+  musicVideos MusicVideo[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+/**
+ * Excel에서 보완한 뮤직비디오 제목·YouTube 링크를 저장합니다.
+ * releaseDate는 원본 Excel에 없으므로 나중에 별도 데이터로 채웁니다.
+ */
+model MusicVideo {
+  id             BigInt                      @id @default(autoincrement())
+  title          String
+  releaseDate    DateTime?
+  youtubeUrl     String?
+  sourceLinkType String?
+  idolId         BigInt
+  idol           Idol                        @relation(fields: [idolId], references: [id], onDelete: Cascade)
+  locations      MusicVideoFilmingLocation[]
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+
+  @@unique([idolId, title])
+}
+
+/**
+ * 한국문화정보원 촬영지 Excel의 한 행을 보존하는 장소입니다.
+ * sourceId는 원본 연번이므로 같은 Excel을 다시 import해도 중복 생성되지 않습니다.
+ */
+model FilmingLocation {
+  id              BigInt                      @id @default(autoincrement())
+  sourceId        Int                         @unique
+  name            String
+  category        LocationCategory
+  sourcePlaceType String
+  description     String?
+  businessHours   String?
+  closedDays      String?
+  address         String
+  latitude        Float
+  longitude       Float
+  phoneNumber     String?
+  sourceUpdatedAt DateTime?
+  imageUrl        String?
+  musicVideos     MusicVideoFilmingLocation[]
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+}
+
+/**
+ * 뮤직비디오와 촬영지의 다대다 관계입니다.
+ */
+model MusicVideoFilmingLocation {
+  musicVideoId      BigInt
+  filmingLocationId BigInt
+  musicVideo        MusicVideo      @relation(fields: [musicVideoId], references: [id], onDelete: Cascade)
+  filmingLocation   FilmingLocation @relation(fields: [filmingLocationId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+
+  @@id([musicVideoId, filmingLocationId])
+  @@index([filmingLocationId])
 }
