@@ -9,10 +9,14 @@ describe('AuthService', () => {
   // 실제 DB 대신 Repository의 필요한 동작만 흉내 내는 객체입니다.
   const findUserByEmail = jest.fn();
   const createLocalUser = jest.fn();
+  const findUserByGoogleSub = jest.fn();
+  const createGoogleUser = jest.fn();
   const signAsync = jest.fn();
   const authRepository = {
     findUserByEmail,
     createLocalUser,
+    findUserByGoogleSub,
+    createGoogleUser,
   } as unknown as jest.Mocked<AuthRepository>;
   const jwtService = { signAsync } as unknown as jest.Mocked<JwtService>;
   const authService = new AuthService(authRepository, jwtService);
@@ -96,5 +100,33 @@ describe('AuthService', () => {
     await expect(
       authService.logIn({ email: 'unknown@idolog.kr', password: 'password123' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('creates a Google user on their first Google login', async () => {
+    findUserByGoogleSub.mockResolvedValue(null);
+    findUserByEmail.mockResolvedValue(null);
+    createGoogleUser.mockResolvedValue({
+      id: 2n,
+      email: 'google@idolog.kr',
+      passwordHash: null,
+      googleSub: 'google-sub-123',
+      nickname: 'Google Fan',
+      preferredLanguage: 'ko',
+      provider: 'GOOGLE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    signAsync.mockResolvedValue('google-access-token');
+
+    await expect(
+      authService.googleLogIn({
+        googleSub: 'google-sub-123',
+        email: 'google@idolog.kr',
+        nickname: 'Google Fan',
+      }),
+    ).resolves.toEqual({ accessToken: 'google-access-token' });
+    expect(createGoogleUser).toHaveBeenCalledWith(
+      expect.objectContaining({ googleSub: 'google-sub-123', preferredLanguage: 'ko' }),
+    );
   });
 });

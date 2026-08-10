@@ -1,11 +1,12 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma, type User } from '@prisma/client';
+import { AuthProvider, Prisma, type User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { SignUpDto } from './dto/sign-up.dto';
 import { AuthRepository } from './auth.repository';
 import { LogInDto } from './dto/log-in.dto';
+import type { GoogleProfile } from './strategies/google.strategy';
 
 /**
  * 클라이언트에 안전하게 공개할 사용자 정보입니다.
@@ -93,7 +94,7 @@ export class AuthService {
     const user = await this.authRepository.findUserByEmail(email);
 
     // Google 전용 계정은 로컬 비밀번호로 로그인할 수 없습니다.
-    if (!user || user.provider !== 'LOCAL' || !user.passwordHash) {
+    if (!user || user.provider !== AuthProvider.LOCAL || !user.passwordHash) {
       throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다.');
     }
 
@@ -101,6 +102,42 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(logInDto.password, user.passwordHash);
     if (!isPasswordValid) {
       throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다.');
+    }
+
+    return this.issueAccessToken(user);
+  }
+
+  /**
+   * Google OAuth가 검증한 profile로 로그인하거나, 처음 방문한 사용자면 계정을 생성합니다.
+   *
+   * LOCAL 계정과 같은 이메일이라고 자동 연결하지 않습니다. 계정 탈취 위험을 피하기 위해
+   * 계정 연결 기능은 사용자가 로그인한 상태에서 별도의 인증 절차로 구현해야 합니다.
+   */
+  async googleLogIn(profile: GoogleProfile): Promise<AccessTokenResponse> {
+    const existingGoogleUser = await this.authRepository.findUserByGoogleSub(profile.googleSub);
+    if (existingGoogleUser) {
+      return this.issueAccessToken(existingGoogleUser);
+    }
+
+    const userWithSameEmail = await this.authRepository.findUserByEmail(profile.email);
+    if (userWithSameEmail) {
+      throw new ConflictException('이미 로컬 계정으로 가입된 이메일입니다.');
+    }
+
+    let user: User;
+    try {
+      user = await this.authRepository.createGoogleUser({
+        email: profile.email,
+        googleSub: profile.googleSub,
+        nickname: profile.nickname,
+        preferredLanguage: 'ko',
+      });
+    } catch (error) {
+      // 동시에 같은 Google 계정으로 가입을 요청한 경우에도 중복 계정을 만들지 않습니다.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('이미 가입된 이메일 또는 Google 계정입니다.');
+      }
+      throw error;
     }
 
     return this.issueAccessToken(user);

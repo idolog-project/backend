@@ -1,13 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
 
 import { AuthController } from './auth.controller';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
+import { GoogleStrategy } from './strategies/google.strategy';
 
 @Module({
   imports: [
+    PassportModule,
     /**
      * JWT secret은 소스 코드가 아니라 환경변수에서만 읽습니다.
      * registerAsync를 쓰면 ConfigModule이 .env를 읽은 뒤에 JWT 설정이 만들어집니다.
@@ -25,6 +28,6 @@ import { AuthService } from './auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthRepository],
+  providers: [AuthService, AuthRepository, GoogleStrategy],
 })
 export class AuthModule {}

@@ -60,6 +60,20 @@ paths:
       operationId: startGoogleOAuth
       responses:
         '302': { description: Google 인증 페이지로 이동 }
+  /auth/oauth/google/callback:
+    get:
+      tags: [Auth]
+      summary: Google OAuth 콜백
+      operationId: completeGoogleOAuth
+      responses:
+        '200':
+          description: Google 인증 및 Idolog 로그인 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '409':
+          description: 같은 이메일의 로컬 계정이 이미 존재함
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
   /auth/refresh:
     post:
       tags: [Auth]
