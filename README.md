@@ -50,7 +50,7 @@ npm run prisma:studio
 
 ## Swagger
 
-개발 서버 실행 후 [http://localhost:3000/api-docs](http://localhost:3000/api-docs)에서 API 문서를 확인할 수 있습니다. Bearer 인증 스키마가 미리 등록되어 있습니다.
+개발 서버 실행 후 [http://localhost:3000/api-docs](http://localhost:3000/api-docs)에서 현재 구현된 API 문서를 확인할 수 있습니다. Bearer 인증 스키마가 미리 등록되어 있습니다. 현재 구현 명세는 [docs/API_SPEC.md](docs/API_SPEC.md)에, 프론트엔드 요구사항을 기준으로 한 구현 대상 명세와 OpenAPI 파일은 [docs/FRONTEND_API_SPEC.md](docs/FRONTEND_API_SPEC.md), [docs/swagger.yaml](docs/swagger.yaml)에 있습니다.
 
 ## 폴더 구조
 

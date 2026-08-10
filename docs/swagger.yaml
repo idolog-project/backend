@@ -1,0 +1,406 @@
+openapi: 3.0.3
+info:
+  title: Idolog API
+  version: 1.0.0-draft
+  description: |
+    프론트엔드(src/api)의 실제 요구사항을 기준으로 한 구현 대상 API 계약입니다.
+    현재 서버에서 제공 중인 Swagger UI(/api-docs)는 구현된 API만 표시합니다.
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development
+tags:
+  - name: Auth
+  - name: Idols
+  - name: Locations
+  - name: Recommendations
+  - name: Courses
+paths:
+  /auth/oauth/google:
+    get:
+      tags: [Auth]
+      summary: Google OAuth 로그인 시작
+      operationId: startGoogleOAuth
+      responses:
+        '302': { description: Google 인증 페이지로 이동 }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Access token 재발급
+      operationId: refreshAccessToken
+      responses:
+        '200':
+          description: 재발급 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 로그아웃
+      operationId: logout
+      responses:
+        '204': { description: 로그아웃 성공 }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: 로그인 사용자 조회
+      operationId: getMe
+      security: [{ access-token: [] }]
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /idols:
+    get:
+      tags: [Idols]
+      summary: 아이돌 목록 조회
+      operationId: getIdols
+      parameters:
+        - $ref: '#/components/parameters/Query'
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdolListResponse' }
+  /idols/{idolId}/locations:
+    get:
+      tags: [Idols, Locations]
+      summary: 아이돌별 촬영지 목록 조회
+      operationId: getIdolLocations
+      parameters:
+        - $ref: '#/components/parameters/IdolId'
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationListResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /locations:
+    get:
+      tags: [Locations]
+      summary: 전체 촬영지 목록 조회
+      operationId: getLocations
+      parameters:
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/LocationCategory' }
+        - name: idolId
+          in: query
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationListResponse' }
+  /locations/{locationId}:
+    get:
+      tags: [Locations]
+      summary: 촬영지 상세 조회
+      operationId: getLocation
+      parameters:
+        - $ref: '#/components/parameters/LocationId'
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocationResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /recommendations:
+    post:
+      tags: [Recommendations]
+      summary: 조건 기반 여행 코스 추천
+      description: 외부 관광 API와 추천 모델 호출 때문에 10~30초가 걸릴 수 있습니다.
+      operationId: getRecommendations
+      security: [{ access-token: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommendationRequest' }
+      responses:
+        '200':
+          description: 추천 성공. 일치하는 코스가 없으면 courses는 빈 배열입니다.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CourseListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503': { $ref: '#/components/responses/RecommendationFailed' }
+  /courses:
+    get:
+      tags: [Courses]
+      summary: 내 저장 코스 목록 조회
+      operationId: getSavedCourses
+      security: [{ access-token: [] }]
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CourseListResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [Courses]
+      summary: 코스 저장
+      operationId: saveCourse
+      security: [{ access-token: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveCourseRequest' }
+      responses:
+        '201':
+          description: 새 코스 저장 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CourseResponse' }
+        '200':
+          description: 이미 저장된 코스(멱등 성공)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CourseResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /courses/{courseId}:
+    delete:
+      tags: [Courses]
+      summary: 저장 코스 삭제
+      operationId: deleteCourse
+      security: [{ access-token: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '204': { description: 삭제 성공 }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    access-token:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Query:
+      name: query
+      in: query
+      description: 아이돌 이름 검색어
+      schema: { type: string, minLength: 1 }
+    IdolId:
+      name: idolId
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+    LocationId:
+      name: locationId
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1 }
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required: [isSuccess, code, message, result]
+      properties:
+        isSuccess: { type: boolean, example: true }
+        code: { type: string, example: COMMON200 }
+        message: { type: string, example: 요청에 성공했습니다. }
+        result: {}
+    ErrorResponse:
+      type: object
+      required: [isSuccess, code, message, result]
+      properties:
+        isSuccess: { type: boolean, example: false }
+        code: { type: string, example: UNAUTHENTICATED }
+        message: { type: string, example: 로그인이 필요합니다. }
+        result: { nullable: true, example: null }
+    User:
+      type: object
+      required: [id, email, nickname]
+      properties:
+        id: { type: integer, format: int64, example: 1 }
+        email: { type: string, format: email, example: fan@idolog.kr }
+        nickname: { type: string, example: 봄날의팬 }
+    Token:
+      type: object
+      required: [accessToken]
+      properties:
+        accessToken: { type: string, example: eyJhbGciOiJIUzI1NiJ9... }
+    Idol:
+      type: object
+      required: [id, name, agency, imageUrl, locationCount]
+      properties:
+        id: { type: integer, format: int64, example: 1 }
+        name: { type: string, example: BTS }
+        agency: { type: string, nullable: true, example: 빅히트 뮤직 }
+        imageUrl: { type: string, format: uri, nullable: true }
+        locationCount: { type: integer, minimum: 0, example: 10 }
+    MusicVideo:
+      type: object
+      required: [id, title, idolId, releaseDate, youtubeUrl]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string, example: Spring Day }
+        idolId: { type: integer, format: int64 }
+        releaseDate: { type: string, format: date, nullable: true }
+        youtubeUrl: { type: string, format: uri, nullable: true }
+    LocationCategory:
+      type: string
+      enum: [MV_SPOT, CAFE, PHOTO_SPOT]
+    FilmingLocation:
+      type: object
+      required: [id, name, category, address, latitude, longitude, imageUrl, description, musicVideos]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        category: { $ref: '#/components/schemas/LocationCategory' }
+        address: { type: string }
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+        imageUrl: { type: string, format: uri, nullable: true }
+        description: { type: string, nullable: true }
+        musicVideos:
+          type: array
+          items: { $ref: '#/components/schemas/MusicVideo' }
+    TransportMode:
+      type: string
+      enum: [WALK, TAXI, BUS, CAR]
+    TravelStyle:
+      type: string
+      enum: [NATURE, CULTURE, ACTIVITY, FOOD, SHOPPING, PHOTO]
+    RecommendationRequest:
+      type: object
+      required: [locationId, transportMode, travelStyles]
+      properties:
+        locationId: { type: integer, format: int64, minimum: 1 }
+        transportMode: { $ref: '#/components/schemas/TransportMode' }
+        travelStyles:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/TravelStyle' }
+        startTime: { type: string, pattern: '^\\d{2}:\\d{2}$', example: '09:00' }
+        availableHours: { type: integer, minimum: 2, maximum: 12 }
+        withPet: { type: boolean }
+        partySize: { type: integer, minimum: 1, maximum: 10 }
+    CoursePlace:
+      type: object
+      required: [order, name, address, latitude, longitude, imageUrl, overview, homepageUrl, arrivalTime, category, distanceFromPrevMeters, durationFromPrevSeconds]
+      properties:
+        order: { type: integer, minimum: 1 }
+        name: { type: string }
+        address: { type: string }
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+        imageUrl: { type: string, format: uri, nullable: true }
+        overview: { type: string, nullable: true }
+        homepageUrl: { type: string, format: uri, nullable: true }
+        arrivalTime: { type: string, pattern: '^\\d{2}:\\d{2}$', nullable: true }
+        category: { type: string, nullable: true }
+        distanceFromPrevMeters: { type: number, nullable: true }
+        durationFromPrevSeconds: { type: number, nullable: true }
+    Course:
+      type: object
+      required: [id, title, summary, reason, places, totalDistanceMeters, totalDurationSeconds, travelDurationSeconds, startTime, endTime]
+      properties:
+        id: { type: string, example: course-north-coast }
+        title: { type: string, example: 파도만 따라가는 길 }
+        summary: { type: string }
+        reason: { type: string }
+        places:
+          type: array
+          items: { $ref: '#/components/schemas/CoursePlace' }
+        totalDistanceMeters: { type: number, minimum: 0 }
+        totalDurationSeconds: { type: number, minimum: 0 }
+        travelDurationSeconds: { type: number, nullable: true, minimum: 0 }
+        startTime: { type: string, nullable: true, pattern: '^\\d{2}:\\d{2}$' }
+        endTime: { type: string, nullable: true, pattern: '^\\d{2}:\\d{2}$' }
+    SaveCourseRequest:
+      type: object
+      required: [locationId, course]
+      properties:
+        locationId: { type: integer, format: int64, minimum: 1 }
+        course: { $ref: '#/components/schemas/Course' }
+    UserResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            result: { $ref: '#/components/schemas/User' }
+    TokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            result: { $ref: '#/components/schemas/Token' }
+    IdolListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            result:
+              type: object
+              required: [idols]
+              properties:
+                idols:
+                  type: array
+                  items: { $ref: '#/components/schemas/Idol' }
+    LocationResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            result: { $ref: '#/components/schemas/FilmingLocation' }
+    LocationListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            result:
+              type: object
+              required: [locations]
+              properties:
+                locations:
+                  type: array
+                  items: { $ref: '#/components/schemas/FilmingLocation' }
+    CourseResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            result: { $ref: '#/components/schemas/Course' }
+    CourseListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            result:
+              type: object
+              required: [courses]
+              properties:
+                courses:
+                  type: array
+                  items: { $ref: '#/components/schemas/Course' }
+  responses:
+    BadRequest:
+      description: 요청값 검증 실패
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    Unauthenticated:
+      description: 인증 정보가 없거나 만료됨
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    NotFound:
+      description: 요청한 리소스가 없음
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    RecommendationFailed:
+      description: 추천 엔진 또는 외부 관광 API 호출 실패
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
