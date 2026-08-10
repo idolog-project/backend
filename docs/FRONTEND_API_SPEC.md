@@ -152,8 +152,8 @@ Refresh cookie를 삭제한다. 성공 시 `204`를 반환한다.
   "locationId": 1,
   "transportMode": "TAXI",
   "travelStyles": ["PHOTO", "FOOD"],
-  "startTime": "09:00",
-  "availableHours": 8,
+  "startTime": "09:00", // 코스 시작 시각(HH:mm)
+  "availableHours": 8, // 시작 시각부터 여행 가능한 총 시간. 종료 시각(17:00)과 장소 운영시간 검증에 사용
   "withPet": false,
   "partySize": 2
 }
@@ -164,8 +164,8 @@ Refresh cookie를 삭제한다. 성공 시 `204`를 반환한다.
 | `locationId` | 예 | 존재하는 촬영지 ID |
 | `transportMode` | 예 | `WALK`, `TAXI`, `BUS`, `CAR` |
 | `travelStyles` | 예 | `NATURE`, `CULTURE`, `ACTIVITY`, `FOOD`, `SHOPPING`, `PHOTO` 중 1개 이상 |
-| `startTime` | 아니오 | `HH:mm` |
-| `availableHours` | 아니오 | 2~12 정수 |
+| `startTime` | 아니오 | 코스 시작 시각, `HH:mm` |
+| `availableHours` | 아니오 | 시작 시각부터 여행 가능한 총 시간(2~12시간). `startTime + availableHours` 범위에서 장소 운영시간과 코스 종료 시각을 검증 |
 | `withPet` | 아니오 | boolean |
 | `partySize` | 아니오 | 1~10 정수 |
 
