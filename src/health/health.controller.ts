@@ -8,7 +8,17 @@ import { createSuccessResponse } from '../common/types/api-response.type';
 export class HealthController {
   @Get()
   @ApiOperation({ summary: '서버 상태 확인' })
-  @ApiOkResponse({ description: '서버가 정상적으로 동작 중입니다.' })
+  @ApiOkResponse({
+    description: '서버가 정상적으로 동작 중입니다.',
+    schema: {
+      example: {
+        isSuccess: true,
+        code: 'COMMON200',
+        message: '서버가 정상적으로 동작 중입니다.',
+        result: { status: 'ok' },
+      },
+    },
+  })
   getHealth() {
     return createSuccessResponse({ status: 'ok' }, 'COMMON200', '서버가 정상적으로 동작 중입니다.');
   }
