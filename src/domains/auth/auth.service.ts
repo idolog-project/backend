@@ -1,26 +1,36 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthProvider, Prisma, type User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-import { SignUpDto } from './dto/sign-up.dto';
 import { AuthRepository } from './auth.repository';
 import { LogInDto } from './dto/log-in.dto';
+import { SignUpDto } from './dto/sign-up.dto';
 import type { GoogleProfile } from './strategies/google.strategy';
 
 /**
  * 클라이언트에 안전하게 공개할 사용자 정보입니다.
- * passwordHash, googleSub처럼 민감하거나 내부 구현에만 필요한 값은 절대 포함하지 않습니다.
+ * passwordHash, refreshTokenHash, googleSub처럼 민감하거나 내부 구현에만 필요한 값은 제외합니다.
  */
-type PublicUser = {
+export type PublicUser = {
   id: number;
   email: string;
   nickname: string;
 };
 
-/** 로그인 성공 후 프론트엔드가 Authorization 헤더에 넣을 access token입니다. */
-type AccessTokenResponse = {
+export type AccessTokenResponse = {
   accessToken: string;
+};
+
+type AuthTokenPair = AccessTokenResponse & {
+  refreshToken: string;
+};
+
+type RefreshTokenPayload = {
+  sub: string;
+  email: string;
+  tokenType: 'refresh';
 };
 
 @Injectable()
@@ -31,6 +41,7 @@ export class AuthService {
   constructor(
     private readonly authRepository: AuthRepository,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -42,16 +53,13 @@ export class AuthService {
    * 4. 비밀 정보를 제외한 사용자 정보만 반환합니다.
    */
   async signUp(signUpDto: SignUpDto): Promise<PublicUser> {
-    // 이메일 대소문자·앞뒤 공백 차이로 중복 계정이 생기지 않게 합니다.
     const email = signUpDto.email.trim().toLowerCase();
     const existingUser = await this.authRepository.findUserByEmail(email);
 
     if (existingUser) {
-      // 이메일 존재 여부를 명확하게 알려 주는 회원가입 전용 오류입니다.
       throw new ConflictException('이미 가입된 이메일입니다.');
     }
 
-    // 원문 비밀번호는 이 줄 이후 DB에 저장하지 않습니다.
     const passwordHash = await bcrypt.hash(signUpDto.password, AuthService.BCRYPT_SALT_ROUNDS);
 
     let user: User;
@@ -60,63 +68,46 @@ export class AuthService {
         email,
         passwordHash,
         nickname: signUpDto.nickname.trim(),
-        // DTO에서는 선택값이지만 DB column은 필수이므로 여기서 기본값을 채웁니다.
         preferredLanguage: signUpDto.preferredLanguage ?? 'ko',
       });
     } catch (error) {
-      /**
-       * findUserByEmail 직후에 다른 요청이 가입할 수 있습니다.
-       * 그래서 DB unique 제약(P2002)도 중복 이메일로 변환해야 경쟁 상태에서도 409를 보장합니다.
-       */
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('이미 가입된 이메일입니다.');
       }
       throw error;
     }
 
-    return {
-      // Prisma의 BigInt는 JSON으로 바로 반환할 수 없으므로 number로 변환합니다.
-      id: Number(user.id),
-      email: user.email,
-      // 로컬 회원가입에서는 nickname을 항상 받지만, DB 타입 안전성을 위해 빈 문자열도 대비합니다.
-      nickname: user.nickname ?? '',
-    };
+    return this.toPublicUser(user);
   }
 
   /**
-   * 로컬 로그인 흐름입니다.
-   *
-   * 이메일 존재 여부와 비밀번호 오류를 같은 401 메시지로 처리합니다.
-   * 둘을 구분해 주면 공격자가 가입된 이메일을 알아낼 수 있기 때문입니다.
+   * 이메일/비밀번호가 맞으면 access token과 refresh token을 함께 새로 발급합니다.
+   * Controller는 refresh token을 응답 body가 아닌 HttpOnly Cookie로만 전달합니다.
    */
-  async logIn(logInDto: LogInDto): Promise<AccessTokenResponse> {
+  async logIn(logInDto: LogInDto): Promise<AuthTokenPair> {
     const email = logInDto.email.trim().toLowerCase();
     const user = await this.authRepository.findUserByEmail(email);
 
-    // Google 전용 계정은 로컬 비밀번호로 로그인할 수 없습니다.
     if (!user || user.provider !== AuthProvider.LOCAL || !user.passwordHash) {
       throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다.');
     }
 
-    // compare는 요청의 원문 비밀번호와 DB의 해시를 안전하게 비교합니다.
     const isPasswordValid = await bcrypt.compare(logInDto.password, user.passwordHash);
     if (!isPasswordValid) {
       throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다.');
     }
 
-    return this.issueAccessToken(user);
+    return this.issueTokenPair(user);
   }
 
   /**
-   * Google OAuth가 검증한 profile로 로그인하거나, 처음 방문한 사용자면 계정을 생성합니다.
-   *
-   * LOCAL 계정과 같은 이메일이라고 자동 연결하지 않습니다. 계정 탈취 위험을 피하기 위해
-   * 계정 연결 기능은 사용자가 로그인한 상태에서 별도의 인증 절차로 구현해야 합니다.
+   * Google OAuth가 검증한 profile로 로그인하거나 처음 방문한 사용자면 계정을 생성합니다.
+   * LOCAL 계정과 같은 이메일을 자동 연결하지 않아 계정 탈취 위험을 막습니다.
    */
-  async googleLogIn(profile: GoogleProfile): Promise<AccessTokenResponse> {
+  async googleLogIn(profile: GoogleProfile): Promise<AuthTokenPair> {
     const existingGoogleUser = await this.authRepository.findUserByGoogleSub(profile.googleSub);
     if (existingGoogleUser) {
-      return this.issueAccessToken(existingGoogleUser);
+      return this.issueTokenPair(existingGoogleUser);
     }
 
     const userWithSameEmail = await this.authRepository.findUserByEmail(profile.email);
@@ -133,27 +124,141 @@ export class AuthService {
         preferredLanguage: 'ko',
       });
     } catch (error) {
-      // 동시에 같은 Google 계정으로 가입을 요청한 경우에도 중복 계정을 만들지 않습니다.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('이미 가입된 이메일 또는 Google 계정입니다.');
       }
       throw error;
     }
 
-    return this.issueAccessToken(user);
+    return this.issueTokenPair(user);
   }
 
   /**
-   * 로그인 방식과 관계없이 동일한 access token을 발급합니다.
-   * Google OAuth 구현 시에도 Google 사용자 검증 후 이 메서드를 호출합니다.
+   * refresh cookie를 검증하고 access/refresh token을 모두 교체합니다.
+   * rotation을 사용하면 탈취된 과거 refresh token은 다음 갱신 뒤 더 이상 쓸 수 없습니다.
    */
-  private async issueAccessToken(user: User): Promise<AccessTokenResponse> {
-    const accessToken = await this.jwtService.signAsync({
-      // BigInt는 JWT payload에 직접 넣지 않고 문자열로 변환합니다.
-      sub: user.id.toString(),
-      email: user.email,
-    });
+  async refresh(refreshToken: string | undefined): Promise<AuthTokenPair> {
+    if (!refreshToken) {
+      throw new UnauthorizedException('refresh token이 필요합니다.');
+    }
 
-    return { accessToken };
+    let payload: RefreshTokenPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(refreshToken, {
+        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('유효하지 않거나 만료된 refresh token입니다.');
+    }
+
+    if (payload.tokenType !== 'refresh') {
+      throw new UnauthorizedException('유효하지 않은 refresh token입니다.');
+    }
+
+    let userId: bigint;
+    try {
+      userId = BigInt(payload.sub);
+    } catch {
+      throw new UnauthorizedException('유효하지 않은 refresh token입니다.');
+    }
+
+    const user = await this.authRepository.findUserById(userId);
+    if (!user?.refreshTokenHash) {
+      throw new UnauthorizedException('다시 로그인해 주세요.');
+    }
+
+    const isCurrentRefreshToken = await bcrypt.compare(refreshToken, user.refreshTokenHash);
+    if (!isCurrentRefreshToken) {
+      throw new UnauthorizedException('다시 로그인해 주세요.');
+    }
+
+    return this.issueTokenPair(user);
+  }
+
+  /**
+   * 로그아웃은 성공 여부를 외부에 드러내지 않는 idempotent 동작입니다.
+   * 쿠키가 없거나 이미 만료돼도 브라우저 쿠키는 지우고 성공 응답을 보냅니다.
+   */
+  async logOut(refreshToken: string | undefined): Promise<void> {
+    if (!refreshToken) {
+      return;
+    }
+
+    try {
+      const payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(refreshToken, {
+        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+      });
+      if (payload.tokenType !== 'refresh') {
+        return;
+      }
+
+      const user = await this.authRepository.findUserById(BigInt(payload.sub));
+      if (user?.refreshTokenHash && (await bcrypt.compare(refreshToken, user.refreshTokenHash))) {
+        await this.authRepository.updateRefreshTokenHash(user.id, null);
+      }
+    } catch {
+      // 만료·위조 토큰도 쿠키만 지우면 되므로 오류로 응답하지 않습니다.
+    }
+  }
+
+  /** access token으로 인증된 현재 사용자의 공개 정보를 반환합니다. */
+  async getMe(userId: string): Promise<PublicUser> {
+    let id: bigint;
+    try {
+      id = BigInt(userId);
+    } catch {
+      throw new UnauthorizedException('유효하지 않은 인증 토큰입니다.');
+    }
+
+    const user = await this.authRepository.findUserById(id);
+    if (!user) {
+      throw new UnauthorizedException('존재하지 않는 사용자입니다.');
+    }
+
+    return this.toPublicUser(user);
+  }
+
+  /** Cookie maxAge를 JWT refresh 만료 시간과 같게 만듭니다. */
+  getRefreshTokenMaxAge(): number {
+    const expiresIn = this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN');
+    const match = /^(\d+)([smhd])$/.exec(expiresIn);
+    if (!match) {
+      throw new Error('JWT_REFRESH_EXPIRES_IN 형식이 올바르지 않습니다.');
+    }
+
+    const value = Number(match[1]);
+    const unitMilliseconds: Record<string, number> = {
+      s: 1000,
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+    };
+    return value * unitMilliseconds[match[2]];
+  }
+
+  private async issueTokenPair(user: User): Promise<AuthTokenPair> {
+    const payload = { sub: user.id.toString(), email: user.email };
+    const accessToken = await this.jwtService.signAsync(payload);
+    const refreshToken = await this.jwtService.signAsync(
+      { ...payload, tokenType: 'refresh' },
+      {
+        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        expiresIn: this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN') as never,
+      },
+    );
+
+    // DB에는 refresh token 원문 대신 해시만 저장합니다.
+    const refreshTokenHash = await bcrypt.hash(refreshToken, AuthService.BCRYPT_SALT_ROUNDS);
+    await this.authRepository.updateRefreshTokenHash(user.id, refreshTokenHash);
+
+    return { accessToken, refreshToken };
+  }
+
+  private toPublicUser(user: User): PublicUser {
+    return {
+      id: Number(user.id),
+      email: user.email,
+      nickname: user.nickname ?? '',
+    };
   }
 }

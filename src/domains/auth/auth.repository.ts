@@ -20,6 +20,22 @@ export class AuthRepository {
     return this.prisma.user.findUnique({ where: { googleSub } });
   }
 
+  /** access/refresh token payload의 사용자 식별자로 현재 사용자를 조회합니다. */
+  findUserById(id: bigint): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
+  /**
+   * refresh token 원문은 저장하지 않습니다.
+   * 해시를 null로 바꾸면 이전 refresh token은 더 이상 재발급에 사용할 수 없습니다.
+   */
+  updateRefreshTokenHash(id: bigint, refreshTokenHash: string | null): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { refreshTokenHash },
+    });
+  }
+
   /**
    * 로컬 계정을 생성합니다.
    * passwordHash만 받아 저장하므로, 이 계층에도 비밀번호 원문이 전달되지 않습니다.

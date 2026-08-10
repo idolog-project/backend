@@ -34,11 +34,11 @@ npm run start:dev
 DATABASE_URL="postgresql://postgres:password@localhost:5432/idolog?schema=public"
 ```
 
-JWT secret은 32자 이상을 사용하세요. Google, OpenAI, TourAPI, Google Maps 키는 연동 기능 구현 전에 발급하여 설정합니다.
+JWT secret은 32자 이상을 사용하세요. Google OAuth를 사용하려면 Google Client ID, Client Secret, Callback URL을 설정합니다. OpenAI, TourAPI, Google Maps 키는 해당 연동 기능 구현 전에 발급하여 설정합니다.
 
 ## Prisma 사용 방법
 
-스키마는 [prisma/schema.prisma](prisma/schema.prisma)에 있습니다. 초기 마이그레이션은 의도적으로 생성하지 않았습니다.
+스키마는 [prisma/schema.prisma](prisma/schema.prisma)에 있고, 변경 이력은 [prisma/migrations](prisma/migrations)에 저장합니다.
 
 ```bash
 npm run prisma:generate
@@ -46,11 +46,11 @@ npx prisma migrate dev --name init
 npm run prisma:studio
 ```
 
-데이터 모델을 변경하면 `npm run prisma:format` 및 `npm run prisma:generate`를 실행합니다. 마이그레이션 생성·적용은 팀 합의 후 진행합니다.
+데이터 모델을 변경하면 `npm run prisma:format` 및 `npm run prisma:generate`를 실행합니다. Railway 같은 운영 환경에서는 개발용 `migrate dev` 대신 `npx prisma migrate deploy`를 사용합니다.
 
 ## Swagger
 
-개발 서버 실행 후 [http://localhost:3000/api-docs](http://localhost:3000/api-docs)에서 현재 구현된 API 문서를 확인할 수 있습니다. Bearer 인증 스키마가 미리 등록되어 있습니다. 현재 구현 명세는 [docs/API_SPEC.md](docs/API_SPEC.md)에, 프론트엔드 요구사항을 기준으로 한 구현 대상 명세와 OpenAPI 파일은 [docs/FRONTEND_API_SPEC.md](docs/FRONTEND_API_SPEC.md), [docs/swagger.yaml](docs/swagger.yaml)에 있습니다. Railway와 로컬에서 프론트 연동 테스트 계정을 준비하는 방법은 [docs/DATABASE_SEED.md](docs/DATABASE_SEED.md)에서 확인합니다.
+개발 서버 실행 후 [http://localhost:3000/api-docs](http://localhost:3000/api-docs)에서 현재 구현된 API 문서를 확인할 수 있습니다. Bearer 인증 스키마가 미리 등록되어 있습니다. 현재 구현 명세는 [docs/API_SPEC.md](docs/API_SPEC.md)에, 프론트엔드 요구사항을 기준으로 한 구현 대상 명세와 OpenAPI 파일은 [docs/FRONTEND_API_SPEC.md](docs/FRONTEND_API_SPEC.md), [docs/swagger.yaml](docs/swagger.yaml)에 있습니다. Railway와 로컬에서 프론트 연동 테스트 계정을 준비하는 방법은 [docs/DATABASE_SEED.md](docs/DATABASE_SEED.md), 로그인 세션 연동 방법은 [docs/AUTH_SESSION.md](docs/AUTH_SESSION.md)에서 확인합니다.
 
 ## 폴더 구조
 
@@ -91,4 +91,4 @@ Homefit과 같은 `main → dev → 작업 브랜치` 흐름과 `feature/*`, `fi
 
 ## 현재 범위
 
-인증 및 Google OAuth 동작, 외부 API(OpenAI, TourAPI, Google Maps) 호출, 추천·여행 코스 비즈니스 로직은 아직 구현하지 않았습니다.
+로컬·Google 인증, access/refresh token 세션, 테스트 계정 시드는 구현되었습니다. 외부 API(OpenAI, TourAPI, Google Maps) 호출과 추천·여행 코스 비즈니스 로직은 아직 구현하지 않았습니다.

@@ -8,11 +8,18 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
       .required(),
     JWT_ACCESS_SECRET: Joi.string().min(32).required(),
     JWT_REFRESH_SECRET: Joi.string().min(32).required(),
-    JWT_ACCESS_EXPIRES_IN: Joi.string().default('1h'),
-    JWT_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
+    JWT_ACCESS_EXPIRES_IN: Joi.string()
+      .pattern(/^\d+[smhd]$/)
+      .default('1h'),
+    JWT_REFRESH_EXPIRES_IN: Joi.string()
+      .pattern(/^\d+[smhd]$/)
+      .default('14d'),
+    FRONTEND_URL: Joi.string().default('http://localhost:5173'),
+    COOKIE_SECURE: Joi.boolean().default(false),
     GOOGLE_CLIENT_ID: Joi.string().required(),
     GOOGLE_CLIENT_SECRET: Joi.string().required(),
     GOOGLE_CALLBACK_URL: Joi.string().uri().required(),
+    OAUTH_SESSION_SECRET: Joi.string().min(32).required(),
     OPENAI_API_KEY: Joi.string().required(),
     TOUR_API_SERVICE_KEY: Joi.string().required(),
     GOOGLE_MAPS_API_KEY: Joi.string().required(),

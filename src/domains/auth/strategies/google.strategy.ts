@@ -20,6 +20,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       clientID: configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
       clientSecret: configService.getOrThrow<string>('GOOGLE_CLIENT_SECRET'),
       callbackURL: configService.getOrThrow<string>('GOOGLE_CALLBACK_URL'),
+      // Google로 나갔다 돌아올 때 session에 저장한 state를 비교해 CSRF를 막습니다.
+      state: true,
       // 로그인에 필요한 최소 권한만 요청합니다.
       scope: ['email', 'profile'],
     });
