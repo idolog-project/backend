@@ -41,6 +41,7 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 | 기능 | 메서드 | 경로 | 인증 |
 | --- | --- | --- | --- |
 | 로컬 회원가입 | POST | `/auth/signup` | 아니오 |
+| 로컬 로그인 | POST | `/auth/login` | 아니오 |
 | Google 로그인 시작 | GET | `/auth/oauth/google` | 아니오 |
 | 토큰 갱신 | POST | `/auth/refresh` | Refresh cookie |
 | 로그아웃 | POST | `/auth/logout` | Refresh cookie |
@@ -72,6 +73,22 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 ```
 
 `preferredLanguage`는 선택값이며, 생략하면 `ko`가 저장됩니다. 성공 시 `201`과 함께 `id`, `email`, `nickname`을 반환합니다.
+
+### POST `/auth/login`
+
+이메일과 비밀번호를 검증하고 access token을 발급합니다. 존재하지 않는 이메일과 잘못된 비밀번호는 모두 `401`과 같은 메시지를 반환합니다.
+
+요청 본문:
+
+```json
+{ "email": "fan@idolog.kr", "password": "password123" }
+```
+
+응답 데이터:
+
+```json
+{ "accessToken": "eyJhbGciOiJIUzI1NiJ9..." }
+```
 
 ### GET `/auth/oauth/google`
 

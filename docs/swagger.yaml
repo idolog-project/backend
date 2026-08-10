@@ -15,6 +15,24 @@ tags:
   - name: Recommendations
   - name: Courses
 paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 로컬 로그인
+      operationId: logIn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LogInRequest' }
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
   /auth/signup:
     post:
       tags: [Auth]
@@ -268,6 +286,12 @@ components:
           type: string
           enum: [ko, en, zh]
           default: ko
+    LogInRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: fan@idolog.kr }
+        password: { type: string, format: password, minLength: 8, example: password123 }
     Idol:
       type: object
       required: [id, name, agency, imageUrl, locationCount]
