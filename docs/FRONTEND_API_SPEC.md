@@ -8,12 +8,12 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 
 ## 연동 결정 사항
 
-| 항목 | 프론트엔드 현 상태 | 백엔드 현 상태 | 구현 기준 |
-| --- | --- | --- | --- |
-| Base URL | `/api` | `/api/v1` | 백엔드는 `/api/v1`을 유지하고, 프론트 `BASE_URL`을 `/api/v1`로 변경한다. |
-| 성공/오류 형식 | 응답 본문을 바로 파싱 | `{ isSuccess, code, message, result }` 래퍼 | 백엔드 공통 응답 형식을 유지하고 프론트에서 `result`를 언래핑한다. 오류는 현재 형식 그대로 `code`, `message`를 최상위에 둔다. |
-| Google 로그인 | `POST /auth/oauth/google` 임시 호출과 `/api/oauth/google` 리다이렉트 상수가 공존 | 미구현 | 브라우저 리다이렉트 방식 `GET /auth/oauth/google`을 정식으로 사용한다. 콜백은 서버 내부 경로이며 프론트가 직접 호출하지 않는다. |
-| Refresh token | HttpOnly Cookie 예상 | 환경변수 존재, 미구현 | `SameSite=Lax`, `HttpOnly`, `Secure(운영)` 쿠키로 발급한다. `POST /auth/refresh`는 body 없이 access token만 반환한다. |
+| 항목           | 프론트엔드 현 상태                                                               | 백엔드 현 상태                              | 구현 기준                                                                                                                                         |
+| -------------- | -------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base URL       | `/api`                                                                           | `/api/v1`                                   | 백엔드는 `/api/v1`을 유지하고, 프론트 `BASE_URL`을 `/api/v1`로 변경한다.                                                                          |
+| 성공/오류 형식 | 응답 본문을 바로 파싱                                                            | `{ isSuccess, code, message, result }` 래퍼 | 백엔드 공통 응답 형식을 유지하고 프론트에서 `result`를 언래핑한다. 오류는 현재 형식 그대로 `code`, `message`를 최상위에 둔다.                     |
+| Google 로그인  | `POST /auth/oauth/google` 임시 호출과 `/api/oauth/google` 리다이렉트 상수가 공존 | 구현됨                                      | 브라우저 리다이렉트 방식 `GET /auth/login/google`을 정식으로 사용한다. 콜백은 서버 내부 경로이며 프론트가 직접 호출하지 않는다.                   |
+| Refresh token  | HttpOnly Cookie 예상                                                             | 구현됨                                      | `SameSite=Strict`, `HttpOnly`, `Secure(운영)` 쿠키로 발급한다. `POST /auth/refresh`는 body 없이 access token만 반환하고 refresh token은 교체한다. |
 
 아래의 `응답 데이터`는 공통 성공 응답의 `result` 값이다. 즉 실제 성공 응답은 항상 다음과 같다.
 
@@ -31,6 +31,7 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 - Base URL: `/api/v1`
 - 콘텐츠 타입: `application/json`
 - 인증: 필요한 요청에 `Authorization: Bearer <accessToken>` 헤더를 보낸다.
+- refresh·logout 요청: 브라우저 요청 옵션에 `credentials: 'include'`를 설정한다. refresh token은 JavaScript가 읽지 못하는 HttpOnly Cookie다.
 - 언어: `Accept-Language: ko`, `en`, `zh-Hans`를 보낸다. 서버는 오류 메시지를 해당 언어로 반환한다.
 - 식별자: DB `BigInt`는 JSON에서 안전하게 사용할 수 있도록 문자열이 아닌 **number 범위의 ID**로 변환해 응답한다. 범위를 넘길 가능성이 생기면 전체 계약을 string ID로 전환한다.
 - 시간: 날짜는 `YYYY-MM-DD`, 시각은 `HH:mm`, 일시는 ISO 8601 UTC 문자열을 사용한다.
@@ -38,22 +39,22 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 
 ## API 목록
 
-| 기능 | 메서드 | 경로 | 인증 |
-| --- | --- | --- | --- |
-| 로컬 회원가입 | POST | `/auth/signup` | 아니오 |
-| 로컬 로그인 | POST | `/auth/login` | 아니오 |
-| Google 로그인 시작 | GET | `/auth/oauth/google` | 아니오 |
-| 토큰 갱신 | POST | `/auth/refresh` | Refresh cookie |
-| 로그아웃 | POST | `/auth/logout` | Refresh cookie |
-| 내 정보 | GET | `/auth/me` | 예 |
-| 아이돌 목록 | GET | `/idols?query=` | 아니오 |
-| 아이돌별 촬영지 | GET | `/idols/{idolId}/locations` | 아니오 |
-| 전체 촬영지 | GET | `/locations?category=&idolId=` | 아니오 |
-| 촬영지 상세 | GET | `/locations/{locationId}` | 아니오 |
-| 코스 추천 | POST | `/recommendations` | 예 |
-| 저장 코스 목록 | GET | `/courses` | 예 |
-| 코스 저장 | POST | `/courses` | 예 |
-| 저장 코스 삭제 | DELETE | `/courses/{courseId}` | 예 |
+| 기능               | 메서드 | 경로                           | 인증           |
+| ------------------ | ------ | ------------------------------ | -------------- |
+| 로컬 회원가입      | POST   | `/auth/signup`                 | 아니오         |
+| 로컬 로그인        | POST   | `/auth/login`                  | 아니오         |
+| Google 로그인 시작 | GET    | `/auth/login/google`           | 아니오         |
+| 토큰 갱신          | POST   | `/auth/refresh`                | Refresh cookie |
+| 로그아웃           | POST   | `/auth/logout`                 | Refresh cookie |
+| 내 정보            | GET    | `/auth/me`                     | 예             |
+| 아이돌 목록        | GET    | `/idols?query=`                | 아니오         |
+| 아이돌별 촬영지    | GET    | `/idols/{idolId}/locations`    | 아니오         |
+| 전체 촬영지        | GET    | `/locations?category=&idolId=` | 아니오         |
+| 촬영지 상세        | GET    | `/locations/{locationId}`      | 아니오         |
+| 코스 추천          | POST   | `/recommendations`             | 예             |
+| 저장 코스 목록     | GET    | `/courses`                     | 예             |
+| 코스 저장          | POST   | `/courses`                     | 예             |
+| 저장 코스 삭제     | DELETE | `/courses/{courseId}`          | 예             |
 
 ## 인증
 
@@ -76,7 +77,7 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 
 ### POST `/auth/login`
 
-이메일과 비밀번호를 검증하고 access token을 발급합니다. 존재하지 않는 이메일과 잘못된 비밀번호는 모두 `401`과 같은 메시지를 반환합니다.
+이메일과 비밀번호를 검증하고 access token을 반환합니다. refresh token은 응답 body가 아닌 HttpOnly Cookie로 함께 설정합니다. 존재하지 않는 이메일과 잘못된 비밀번호는 모두 `401`과 같은 메시지를 반환합니다.
 
 요청 본문:
 
@@ -90,13 +91,13 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 { "accessToken": "eyJhbGciOiJIUzI1NiJ9..." }
 ```
 
-### GET `/auth/oauth/google`
+### GET `/auth/login/google`
 
-Google OAuth 동의를 시작한다. `302`로 Google 인증 페이지로 이동한다. 처음 로그인한 Google 계정은 `provider: GOOGLE`, `googleSub`으로 자동 가입된다. 인증 성공 후 callback API가 access token을 반환한다. 프론트엔드 redirect·refresh cookie 연동은 별도 인증 세션 API에서 추가한다.
+Google OAuth 동의를 시작한다. `302`로 Google 인증 페이지로 이동한다. 처음 로그인한 Google 계정은 `provider: GOOGLE`, `googleSub`으로 자동 가입된다. 인증 성공 후 callback API는 refresh token Cookie만 설정하고 프론트 `/auth/callback`으로 이동한다. access token은 URL에 전달하지 않는다.
 
 ### POST `/auth/refresh`
 
-Body 없이 refresh cookie로 access token을 재발급한다.
+Body 없이 refresh cookie로 access token을 재발급한다. 성공하면 refresh token도 새 값으로 교체되므로, 프론트는 새로고침 후 또는 access token 만료 시 호출한다.
 
 응답 데이터:
 
@@ -108,7 +109,7 @@ Body 없이 refresh cookie로 access token을 재발급한다.
 
 ### POST `/auth/logout`
 
-Refresh cookie를 삭제한다. 성공 시 `204`를 반환한다.
+DB에 저장한 refresh token 해시와 브라우저 cookie를 함께 삭제한다. 이미 만료된 cookie여도 성공으로 처리하며 `200`을 반환한다.
 
 ### GET `/auth/me`
 
@@ -194,15 +195,15 @@ Refresh cookie를 삭제한다. 성공 시 `204`를 반환한다.
 }
 ```
 
-| 필드 | 필수 | 제약 |
-| --- | --- | --- |
-| `locationId` | 예 | 존재하는 촬영지 ID |
-| `transportMode` | 예 | `WALK`, `TAXI`, `BUS`, `CAR` |
-| `travelStyles` | 예 | `NATURE`, `CULTURE`, `ACTIVITY`, `FOOD`, `SHOPPING`, `PHOTO` 중 1개 이상 |
-| `startTime` | 아니오 | 코스 시작 시각, `HH:mm` |
+| 필드             | 필수   | 제약                                                                                                                     |
+| ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `locationId`     | 예     | 존재하는 촬영지 ID                                                                                                       |
+| `transportMode`  | 예     | `WALK`, `TAXI`, `BUS`, `CAR`                                                                                             |
+| `travelStyles`   | 예     | `NATURE`, `CULTURE`, `ACTIVITY`, `FOOD`, `SHOPPING`, `PHOTO` 중 1개 이상                                                 |
+| `startTime`      | 아니오 | 코스 시작 시각, `HH:mm`                                                                                                  |
 | `availableHours` | 아니오 | 시작 시각부터 여행 가능한 총 시간(2~12시간). `startTime + availableHours` 범위에서 장소 운영시간과 코스 종료 시각을 검증 |
-| `withPet` | 아니오 | boolean |
-| `partySize` | 아니오 | 1~10 정수 |
+| `withPet`        | 아니오 | boolean                                                                                                                  |
+| `partySize`      | 아니오 | 1~10 정수                                                                                                                |
 
 응답 데이터:
 
@@ -229,7 +230,7 @@ Refresh cookie를 삭제한다. 성공 시 `204`를 반환한다.
 ```json
 {
   "locationId": 1,
-  "course": { /* 아래 Course 형식 */ }
+  "course": {/* 아래 Course 형식 */}
 }
 ```
 
@@ -268,10 +269,10 @@ Refresh cookie를 삭제한다. 성공 시 `204`를 반환한다.
 { "isSuccess": false, "code": "UNAUTHENTICATED", "message": "로그인이 필요합니다.", "result": null }
 ```
 
-| 상태 | 코드 | 용도 |
-| --- | --- | --- |
-| 400 | `COMMON400` | 요청값 검증 실패 |
-| 401 | `UNAUTHENTICATED` | access token 또는 refresh cookie 없음/만료 |
-| 404 | `NOT_FOUND` | 촬영지·아이돌·저장 코스 없음 |
-| 409 | `DUPLICATE_EMAIL` | 이메일 가입을 유지하는 경우의 중복 이메일 |
-| 503 | `RECOMMENDATION_FAILED` | 추천/TourAPI/OpenAI 호출 실패 |
+| 상태 | 코드                    | 용도                                       |
+| ---- | ----------------------- | ------------------------------------------ |
+| 400  | `COMMON400`             | 요청값 검증 실패                           |
+| 401  | `UNAUTHENTICATED`       | access token 또는 refresh cookie 없음/만료 |
+| 404  | `NOT_FOUND`             | 촬영지·아이돌·저장 코스 없음               |
+| 409  | `DUPLICATE_EMAIL`       | 이메일 가입을 유지하는 경우의 중복 이메일  |
+| 503  | `RECOMMENDATION_FAILED` | 추천/TourAPI/OpenAI 호출 실패              |

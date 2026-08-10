@@ -11,18 +11,30 @@ describe('AuthService', () => {
   const createLocalUser = jest.fn();
   const findUserByGoogleSub = jest.fn();
   const createGoogleUser = jest.fn();
+  const findUserById = jest.fn();
+  const updateRefreshTokenHash = jest.fn();
   const signAsync = jest.fn();
+  const verifyAsync = jest.fn();
   const authRepository = {
     findUserByEmail,
     createLocalUser,
     findUserByGoogleSub,
     createGoogleUser,
+    findUserById,
+    updateRefreshTokenHash,
   } as unknown as jest.Mocked<AuthRepository>;
-  const jwtService = { signAsync } as unknown as jest.Mocked<JwtService>;
-  const authService = new AuthService(authRepository, jwtService);
+  const jwtService = { signAsync, verifyAsync } as unknown as jest.Mocked<JwtService>;
+  const getOrThrow = jest.fn();
+  const configService = { getOrThrow };
+  const authService = new AuthService(authRepository, jwtService, configService as never);
 
   beforeEach(() => {
     jest.resetAllMocks();
+    getOrThrow.mockImplementation((key: string) => {
+      if (key === 'JWT_REFRESH_SECRET') return 'refresh-secret';
+      if (key === 'JWT_REFRESH_EXPIRES_IN') return '14d';
+      return 'access-secret';
+    });
   });
 
   it('hashes the password and creates a local user', async () => {
@@ -86,12 +98,14 @@ describe('AuthService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    signAsync.mockResolvedValue('access-token');
+    signAsync.mockResolvedValueOnce('access-token').mockResolvedValueOnce('refresh-token');
+    updateRefreshTokenHash.mockResolvedValue({});
 
     await expect(
       authService.logIn({ email: 'Fan@Idolog.kr', password: 'password123' }),
-    ).resolves.toEqual({ accessToken: 'access-token' });
+    ).resolves.toEqual({ accessToken: 'access-token', refreshToken: 'refresh-token' });
     expect(signAsync).toHaveBeenCalledWith({ sub: '1', email: 'fan@idolog.kr' });
+    expect(updateRefreshTokenHash).toHaveBeenCalledWith(1n, expect.any(String));
   });
 
   it('uses the same 401 error for an unknown email and incorrect password', async () => {
@@ -116,7 +130,10 @@ describe('AuthService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    signAsync.mockResolvedValue('google-access-token');
+    signAsync
+      .mockResolvedValueOnce('google-access-token')
+      .mockResolvedValueOnce('google-refresh-token');
+    updateRefreshTokenHash.mockResolvedValue({});
 
     await expect(
       authService.googleLogIn({
@@ -124,9 +141,42 @@ describe('AuthService', () => {
         email: 'google@idolog.kr',
         nickname: 'Google Fan',
       }),
-    ).resolves.toEqual({ accessToken: 'google-access-token' });
+    ).resolves.toEqual({
+      accessToken: 'google-access-token',
+      refreshToken: 'google-refresh-token',
+    });
     expect(createGoogleUser).toHaveBeenCalledWith(
       expect.objectContaining({ googleSub: 'google-sub-123', preferredLanguage: 'ko' }),
     );
+  });
+
+  it('rotates refresh token after verifying its DB hash', async () => {
+    const oldRefreshToken = 'old-refresh-token';
+    const refreshTokenHash = await bcrypt.hash(oldRefreshToken, 4);
+    verifyAsync.mockResolvedValue({
+      sub: '1',
+      email: 'fan@idolog.kr',
+      tokenType: 'refresh',
+    });
+    findUserById.mockResolvedValue({
+      id: 1n,
+      email: 'fan@idolog.kr',
+      passwordHash: 'hash',
+      refreshTokenHash,
+      googleSub: null,
+      nickname: '아이돌팬',
+      preferredLanguage: 'ko',
+      provider: 'LOCAL',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    signAsync.mockResolvedValueOnce('new-access-token').mockResolvedValueOnce('new-refresh-token');
+    updateRefreshTokenHash.mockResolvedValue({});
+
+    await expect(authService.refresh(oldRefreshToken)).resolves.toEqual({
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token',
+    });
+    expect(updateRefreshTokenHash).toHaveBeenCalledWith(1n, expect.any(String));
   });
 });

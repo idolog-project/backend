@@ -27,7 +27,7 @@ paths:
             schema: { $ref: '#/components/schemas/LogInRequest' }
       responses:
         '200':
-          description: 로그인 성공
+          description: 로그인 성공. HttpOnly refreshToken Cookie를 함께 설정합니다.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
@@ -53,35 +53,30 @@ paths:
         '409':
           description: 이미 가입된 이메일
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
-  /auth/oauth/google:
+  /auth/login/google:
     get:
       tags: [Auth]
       summary: Google OAuth 로그인 시작
       operationId: startGoogleOAuth
       responses:
         '302': { description: Google 인증 페이지로 이동 }
-  /auth/oauth/google/callback:
+  /auth/callback/google:
     get:
       tags: [Auth]
       summary: Google OAuth 콜백
       operationId: completeGoogleOAuth
       responses:
-        '200':
-          description: Google 인증 및 Idolog 로그인 성공
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/TokenResponse' }
-        '409':
-          description: 같은 이메일의 로컬 계정이 이미 존재함
-          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '302':
+          description: refreshToken Cookie를 설정하고 프론트 콜백 페이지로 리다이렉트
   /auth/refresh:
     post:
       tags: [Auth]
       summary: Access token 재발급
       operationId: refreshAccessToken
+      security: [{ refresh-token: [] }]
       responses:
         '200':
-          description: 재발급 성공
+          description: 재발급 성공. HttpOnly refreshToken Cookie를 새 값으로 교체합니다.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
@@ -91,8 +86,9 @@ paths:
       tags: [Auth]
       summary: 로그아웃
       operationId: logout
+      security: [{ refresh-token: [] }]
       responses:
-        '204': { description: 로그아웃 성공 }
+        '200': { description: 로그아웃 성공. refreshToken Cookie를 삭제합니다. }
   /auth/me:
     get:
       tags: [Auth]
@@ -239,6 +235,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    refresh-token:
+      type: apiKey
+      in: cookie
+      name: refreshToken
   parameters:
     Query:
       name: query
@@ -329,7 +329,8 @@ components:
       enum: [MV_SPOT, CAFE, PHOTO_SPOT]
     FilmingLocation:
       type: object
-      required: [id, name, category, address, latitude, longitude, imageUrl, description, musicVideos]
+      required:
+        [id, name, category, address, latitude, longitude, imageUrl, description, musicVideos]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -372,7 +373,21 @@ components:
         partySize: { type: integer, minimum: 1, maximum: 10 }
     CoursePlace:
       type: object
-      required: [order, name, address, latitude, longitude, imageUrl, overview, homepageUrl, arrivalTime, category, distanceFromPrevMeters, durationFromPrevSeconds]
+      required:
+        [
+          order,
+          name,
+          address,
+          latitude,
+          longitude,
+          imageUrl,
+          overview,
+          homepageUrl,
+          arrivalTime,
+          category,
+          distanceFromPrevMeters,
+          durationFromPrevSeconds,
+        ]
       properties:
         order: { type: integer, minimum: 1 }
         name: { type: string }
@@ -388,7 +403,19 @@ components:
         durationFromPrevSeconds: { type: number, nullable: true }
     Course:
       type: object
-      required: [id, title, summary, reason, places, totalDistanceMeters, totalDurationSeconds, travelDurationSeconds, startTime, endTime]
+      required:
+        [
+          id,
+          title,
+          summary,
+          reason,
+          places,
+          totalDistanceMeters,
+          totalDurationSeconds,
+          travelDurationSeconds,
+          startTime,
+          endTime,
+        ]
       properties:
         id: { type: string, example: course-north-coast }
         title: { type: string, example: 파도만 따라가는 길 }
