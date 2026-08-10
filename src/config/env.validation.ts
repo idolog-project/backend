@@ -12,6 +12,7 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
     JWT_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
     GOOGLE_CLIENT_ID: Joi.string().required(),
     GOOGLE_CLIENT_SECRET: Joi.string().required(),
+    GOOGLE_CALLBACK_URL: Joi.string().uri().required(),
     OPENAI_API_KEY: Joi.string().required(),
     TOUR_API_SERVICE_KEY: Joi.string().required(),
     GOOGLE_MAPS_API_KEY: Joi.string().required(),

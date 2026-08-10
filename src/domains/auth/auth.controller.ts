@@ -1,4 +1,5 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBody,
   ApiConflictResponse,
@@ -7,10 +8,14 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 
 import { AuthService } from './auth.service';
 import { LogInDto } from './dto/log-in.dto';
 import { SignUpDto } from './dto/sign-up.dto';
+import type { GoogleProfile } from './strategies/google.strategy';
+
+type GoogleCallbackRequest = Request & { user: GoogleProfile };
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -60,5 +65,32 @@ export class AuthController {
   })
   async logIn(@Body() logInDto: LogInDto) {
     return this.authService.logIn(logInDto);
+  }
+
+  /** Google 로그인 페이지로 브라우저를 리다이렉트합니다. */
+  @Get('oauth/google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google 로그인 시작' })
+  async startGoogleOAuth(): Promise<void> {
+    // AuthGuard가 Google로 리다이렉트하므로 Controller 본문은 비어 있습니다.
+  }
+
+  /** Google 인증이 끝난 뒤 호출되며, 계정을 생성/조회하고 Idolog JWT를 반환합니다. */
+  @Get('oauth/google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google 로그인 콜백' })
+  @ApiOkResponse({
+    description: 'Google 인증과 Idolog 로그인에 성공했습니다.',
+    schema: {
+      example: {
+        isSuccess: true,
+        code: 'COMMON200',
+        message: '요청에 성공했습니다.',
+        result: { accessToken: 'eyJhbGciOiJIUzI1NiJ9...' },
+      },
+    },
+  })
+  async completeGoogleOAuth(@Req() request: GoogleCallbackRequest) {
+    return this.authService.googleLogIn(request.user);
   }
 }

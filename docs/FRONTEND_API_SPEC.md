@@ -92,7 +92,7 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 
 ### GET `/auth/oauth/google`
 
-Google OAuth 동의를 시작한다. `302`로 Google 인증 페이지로 이동한다. 로그인 성공 후 서버는 refresh cookie를 설정하고, 프론트 콜백 URL로 `accessToken`을 전달하거나 일회성 code를 전달한다. **권장안은 URL 토큰 노출을 피하기 위해 code를 전달한 뒤 서버가 refresh cookie를 기반으로 `/auth/refresh`를 호출하는 방식**이다.
+Google OAuth 동의를 시작한다. `302`로 Google 인증 페이지로 이동한다. 처음 로그인한 Google 계정은 `provider: GOOGLE`, `googleSub`으로 자동 가입된다. 인증 성공 후 callback API가 access token을 반환한다. 프론트엔드 redirect·refresh cookie 연동은 별도 인증 세션 API에서 추가한다.
 
 ### POST `/auth/refresh`
 
