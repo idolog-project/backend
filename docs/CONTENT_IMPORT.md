@@ -19,10 +19,10 @@
 npx prisma migrate deploy
 ```
 
-2. 로컬 .env에 Railway 외부 접속용 DATABASE_URL과 Excel의 절대 경로를 넣습니다.
+2. 로컬 .env에 Railway 외부 접속용 DATABASE_URL을 넣습니다. 기본 Excel은 저장소의 prisma/data/music-video-filming-location-links.xlsx에 포함되어 있어 별도 경로 설정이 필요 없습니다.
 
 ```env
-CONTENT_EXCEL_PATH=/Users/name/Desktop/idolog/뮤직비디오_촬영지_링크_정리.xlsx
+DATABASE_URL=Railway-외부-접속용-URL
 ```
 
 3. 로컬 컴퓨터에서 import를 실행합니다.
@@ -31,7 +31,11 @@ CONTENT_EXCEL_PATH=/Users/name/Desktop/idolog/뮤직비디오_촬영지_링크_�
 npm run prisma:seed:content
 ```
 
-Railway Shell은 개인 컴퓨터의 Excel 파일에 접근할 수 없으므로, 이 명령은 로컬에서 실행합니다.
+Railway Shell은 저장소의 Excel 파일에 접근할 수 있지만, DB에 데이터를 넣기 전에는 로컬에서 결과를 확인한 뒤 실행하는 것을 권장합니다.
+
+## 다른 Excel 파일로 교체하기
+
+기본 파일 대신 다른 파일을 쓰려면 CONTENT_EXCEL_PATH에 그 파일의 절대 경로를 설정합니다.
 
 ## 주의 사항
 
