@@ -319,10 +319,21 @@ components:
         reason: { type: string }
         places:
           type: array
+          description: 방문 장소 목록입니다. order 오름차순으로 이동합니다.
           items: { $ref: '#/components/schemas/CoursePlace' }
-        totalDistanceMeters: { type: number, minimum: 0 }
-        totalDurationSeconds: { type: number, minimum: 0 }
-        travelDurationSeconds: { type: number, nullable: true, minimum: 0 }
+        totalDistanceMeters:
+          type: number
+          minimum: 0
+          description: '전체 이동 거리(미터)입니다. 예: 23000은 23km입니다.'
+        totalDurationSeconds:
+          type: number
+          minimum: 0
+          description: '이동 시간과 장소 체류 시간을 포함한 전체 코스 소요 시간(초)입니다. 예: 37800은 10시간 30분입니다.'
+        travelDurationSeconds:
+          type: number
+          nullable: true
+          minimum: 0
+          description: '장소 간 이동 시간만 합산한 값(초)입니다. 장소 체류 시간은 제외합니다. 예: 2400은 40분입니다.'
         startTime: { type: string, nullable: true, pattern: '^\\d{2}:\\d{2}$' }
         endTime: { type: string, nullable: true, pattern: '^\\d{2}:\\d{2}$' }
     SaveCourseRequest:

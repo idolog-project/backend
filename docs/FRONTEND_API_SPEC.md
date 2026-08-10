@@ -214,10 +214,10 @@ Refresh cookie를 삭제한다. 성공 시 `204`를 반환한다.
   "title": "파도만 따라가는 길",
   "summary": "코스 한 줄 설명",
   "reason": "추천 사유",
-  "places": [/* CoursePlace 배열, order 오름차순 */],
-  "totalDistanceMeters": 23000,
-  "totalDurationSeconds": 37800,
-  "travelDurationSeconds": 2400,
+  "places": [/* 방문 장소 목록. order 오름차순으로 이동 */],
+  "totalDistanceMeters": 23000, // 전체 이동 거리(m) — 23km
+  "totalDurationSeconds": 37800, // 이동 + 장소 체류를 포함한 전체 소요 시간(초) — 10시간 30분
+  "travelDurationSeconds": 2400, // 장소 간 이동 시간만 합산한 값(초) — 40분, 체류 시간 제외
   "startTime": "08:00",
   "endTime": "18:30"
 }
