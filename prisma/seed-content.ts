@@ -1,14 +1,16 @@
 import { PrismaClient, type LocationCategory } from '@prisma/client';
+import { resolve } from 'node:path';
 import * as XLSX from 'xlsx';
 
 /**
  * 뮤직비디오 제목·링크가 보완된 Excel 파일을 DB에 가져옵니다.
  *
- * CONTENT_EXCEL_PATH="/절대/경로/뮤직비디오_촬영지_링크_정리.xlsx" npm run prisma:seed:content
+ * npm run prisma:seed:content
  *
  * 원본 연번(sourceId)을 unique 키로 사용해 같은 파일을 다시 실행해도 중복 생성하지 않습니다.
  */
 const prisma = new PrismaClient();
+const DEFAULT_EXCEL_PATH = resolve(__dirname, 'data', 'music-video-filming-location-links.xlsx');
 
 type SourceRow = {
   연번: string | number;
@@ -29,12 +31,9 @@ type SourceRow = {
   '링크 구분': string;
 };
 
-function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(name + ' 환경변수가 필요합니다. Excel 파일의 절대 경로를 설정하세요.');
-  }
-  return value;
+function getExcelPath(): string {
+  // 기본 파일은 저장소에 포함되어 있어, 팀원 누구나 clone 뒤 바로 import할 수 있습니다.
+  return process.env.CONTENT_EXCEL_PATH?.trim() || DEFAULT_EXCEL_PATH;
 }
 
 function optionalText(value: unknown): string | null {
@@ -53,7 +52,7 @@ function getCategory(sourcePlaceType: unknown): LocationCategory {
 }
 
 async function main(): Promise<void> {
-  const workbook = XLSX.readFile(requiredEnv('CONTENT_EXCEL_PATH'), { cellDates: false });
+  const workbook = XLSX.readFile(getExcelPath(), { cellDates: false });
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) throw new Error('Excel 파일에 시트가 없습니다.');
 
