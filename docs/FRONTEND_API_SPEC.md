@@ -40,6 +40,7 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 
 | 기능 | 메서드 | 경로 | 인증 |
 | --- | --- | --- | --- |
+| 로컬 회원가입 | POST | `/auth/signup` | 아니오 |
 | Google 로그인 시작 | GET | `/auth/oauth/google` | 아니오 |
 | 토큰 갱신 | POST | `/auth/refresh` | Refresh cookie |
 | 로그아웃 | POST | `/auth/logout` | Refresh cookie |
@@ -54,6 +55,23 @@ OpenAPI: [swagger.yaml](./swagger.yaml)
 | 저장 코스 삭제 | DELETE | `/courses/{courseId}` | 예 |
 
 ## 인증
+
+### POST `/auth/signup`
+
+이메일과 비밀번호로 로컬 계정을 생성합니다. 비밀번호 원문은 저장하지 않고 bcrypt 해시로 변환해 저장합니다. 이미 가입된 이메일이면 `409 COMMON409`을 반환합니다.
+
+요청 본문:
+
+```json
+{
+  "email": "fan@idolog.kr",
+  "password": "password123",
+  "nickname": "아이돌팬",
+  "preferredLanguage": "ko"
+}
+```
+
+`preferredLanguage`는 선택값이며, 생략하면 `ko`가 저장됩니다. 성공 시 `201`과 함께 `id`, `email`, `nickname`을 반환합니다.
 
 ### GET `/auth/oauth/google`
 

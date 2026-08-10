@@ -15,6 +15,26 @@ tags:
   - name: Recommendations
   - name: Courses
 paths:
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: 로컬 회원가입
+      operationId: signUp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignUpRequest' }
+      responses:
+        '201':
+          description: 회원가입 성공
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409':
+          description: 이미 가입된 이메일
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
   /auth/oauth/google:
     get:
       tags: [Auth]
@@ -237,6 +257,17 @@ components:
       required: [accessToken]
       properties:
         accessToken: { type: string, example: eyJhbGciOiJIUzI1NiJ9... }
+    SignUpRequest:
+      type: object
+      required: [email, password, nickname]
+      properties:
+        email: { type: string, format: email, example: fan@idolog.kr }
+        password: { type: string, format: password, minLength: 8, example: password123 }
+        nickname: { type: string, minLength: 2, maxLength: 20, example: 아이돌팬 }
+        preferredLanguage:
+          type: string
+          enum: [ko, en, zh]
+          default: ko
     Idol:
       type: object
       required: [id, name, agency, imageUrl, locationCount]
