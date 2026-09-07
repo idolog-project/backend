@@ -1,4 +1,14 @@
+import type { RecommendationCandidate } from './planning.type';
 export type CoursePlace = {
+  locationId?: string;
+  candidateId?: string;
+  musicVideos?: RecommendationCandidate['musicVideos'];
+  businessHours?: string | null;
+  closedDays?: string | null;
+  availability?: 'unknown';
+  departureTime?: string;
+  recommendedStaySeconds?: number;
+  selectionReason?: string;
   order: number;
   name: string;
   address: string;
@@ -15,6 +25,7 @@ export type CoursePlace = {
 
 export type Course = {
   id: string;
+  courseType?: 'A' | 'B' | 'C';
   title: string;
   summary: string;
   reason: string;

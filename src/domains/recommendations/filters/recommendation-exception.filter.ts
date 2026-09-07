@@ -21,7 +21,7 @@ export class RecommendationExceptionFilter implements ExceptionFilter {
         : '추천 코스를 생성할 수 없습니다.';
 
     this.logger.error(
-      `${request.method} ${request.originalUrl?.split('?')[0] ?? request.url} - ${HttpStatus.SERVICE_UNAVAILABLE}`,
+      `${request.method} ${request.originalUrl?.split('?')[0] ?? request.url} - ${HttpStatus.SERVICE_UNAVAILABLE} reason=${exception.failureReason} requestId=${exception.requestId ?? 'unknown'}`,
       exception.stack,
     );
 

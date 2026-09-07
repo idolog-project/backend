@@ -19,8 +19,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   private shouldSkipConnection(): boolean {
-    return (
-      this.configService.get<boolean>('RECOMMENDATION_STANDALONE_ENABLED', false)
-    );
+    return this.configService.get<boolean>('RECOMMENDATION_STANDALONE_ENABLED', false);
   }
 }

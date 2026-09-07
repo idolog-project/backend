@@ -33,6 +33,7 @@ export class CreateRecommendationDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
   locationId!: number;
 
   @ApiProperty({ enum: TransportMode, example: TransportMode.TAXI })
