@@ -1,6 +1,7 @@
 import type { RecommendationCandidate } from './planning.type';
 export type CoursePlace = {
   locationId?: string;
+  tourContentId?: string;
   candidateId?: string;
   musicVideos?: RecommendationCandidate['musicVideos'];
   businessHours?: string | null;

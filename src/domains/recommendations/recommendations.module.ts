@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { TourismModule } from '../tourism/tourism.module';
 import { RecommendationsController } from './recommendations.controller';
 import { RecommendationsService } from './recommendations.service';
 import { RecommendationOrchestrator } from './application/recommendation-orchestrator.service';
@@ -15,8 +16,9 @@ import { MapRouteService } from './route/map-route.service';
 import { GoogleMapsRouteAdapter } from './route/google-maps-route.adapter';
 import { RouteFeasibilityValidator } from './route/route-feasibility.validator';
 import { CourseAssembler } from './assembler/course-assembler.service';
+
 @Module({
-  imports: [AuthModule, PrismaModule],
+  imports: [AuthModule, PrismaModule, TourismModule],
   controllers: [RecommendationsController],
   providers: [
     RecommendationsService,

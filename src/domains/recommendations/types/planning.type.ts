@@ -1,7 +1,10 @@
 import type { CreateRecommendationDto } from '../dto/create-recommendation.dto';
+
 export interface RecommendationCandidate {
+  source: 'FILMING_LOCATION' | 'TOUR_API';
   candidateId: string;
-  locationId: string;
+  locationId?: string;
+  tourContentId?: string;
   name: string;
   category: string | null;
   description: string | null;
@@ -11,6 +14,7 @@ export interface RecommendationCandidate {
   latitude: number;
   longitude: number;
   imageUrl: string | null;
+  homepageUrl: string | null;
   musicVideos: Array<{
     id: string;
     title: string;
@@ -18,12 +22,14 @@ export interface RecommendationCandidate {
     idol: { id: string; name: string };
   }>;
 }
+
 export interface AIStop {
   candidateId: string;
   order: number;
   recommendedStaySeconds: number;
   selectionReason: string;
 }
+
 export interface AICourse {
   courseType: 'A' | 'B' | 'C';
   title: string;
@@ -31,9 +37,11 @@ export interface AICourse {
   reason: string;
   stops: AIStop[];
 }
+
 export interface AIRecommendationDraft {
   courses: AICourse[];
 }
+
 export interface PlanningInput {
   userConditions: CreateRecommendationDto;
   fixedStartLocation: RecommendationCandidate;
@@ -44,21 +52,25 @@ export interface PlanningInput {
     previousDraft?: AIRecommendationDraft;
   };
 }
+
 export interface RouteLeg {
   distanceMeters: number;
   durationSeconds: number;
 }
+
 export interface RoutedCourse {
   draft: AICourse;
   locations: RecommendationCandidate[];
   stays: number[];
   legs: RouteLeg[];
 }
+
 export class PlanningError extends Error {
   constructor(public readonly code: string) {
     super(code);
   }
 }
+
 export const RULES = {
   minStops: 2,
   maxStops: 5,
@@ -67,8 +79,8 @@ export const RULES = {
   startStay: 3600,
   maxLegSeconds: 5400,
   poolLimit: 40,
-  scanLimit: 1000,
 } as const;
+
 export function validCoordinates(p: { latitude: number; longitude: number }): boolean {
   return (
     Number.isFinite(p.latitude) &&

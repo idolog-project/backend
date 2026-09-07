@@ -19,6 +19,7 @@ export class CourseAssembler {
           return {
             order: i + 1,
             locationId: p.locationId,
+            tourContentId: p.tourContentId,
             candidateId: p.candidateId,
             name: p.name,
             address: p.address,
@@ -26,7 +27,7 @@ export class CourseAssembler {
             longitude: p.longitude,
             imageUrl: p.imageUrl,
             overview: p.description,
-            homepageUrl: null,
+            homepageUrl: p.homepageUrl,
             category: p.category,
             musicVideos: p.musicVideos,
             businessHours: p.businessHours,

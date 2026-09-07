@@ -32,6 +32,7 @@ const dto: CreateRecommendationDto = {
   availableHours: 8,
 };
 const candidate = (id: number): RecommendationCandidate => ({
+  source: 'FILMING_LOCATION',
   candidateId: `PLACE_${id}`,
   locationId: String(id),
   name: `DB 장소 ${id}`,
@@ -41,6 +42,7 @@ const candidate = (id: number): RecommendationCandidate => ({
   latitude: 37.5 + id / 10000,
   longitude: 127,
   imageUrl: 'https://example.com/db.jpg',
+  homepageUrl: null,
   businessHours: null,
   closedDays: null,
   musicVideos: [
@@ -253,15 +255,15 @@ describe('network retry', () => {
   });
 });
 describe('candidate provider and schema', () => {
-  const row = (id: bigint, latitude = 37.5) => ({
+  const row = (id: bigint) => ({
     id,
-    name: 'DB',
+    name: 'DB 촬영지',
     category: 'PHOTO_SPOT',
     description: null,
     businessHours: null,
     closedDays: null,
     address: '주소',
-    latitude,
+    latitude: 37.5,
     longitude: 127,
     imageUrl: null,
     musicVideos: [
@@ -275,38 +277,85 @@ describe('candidate provider and schema', () => {
       },
     ],
   });
-  it('loads actual relations without N+1 and serializes BigInt safely', async () => {
+
+  it('loads only the fixed start from DB and receives candidates from TourismService', async () => {
     const prisma = {
       filmingLocation: {
         findUnique: jest.fn().mockResolvedValue(row(10n)),
-        findMany: jest
-          .fn()
-          .mockResolvedValue([row(9007199254740993n), row(12n, 80), row(13n, NaN)]),
       },
     };
+    const tourism = {
+      getFilteredCandidates: jest.fn().mockResolvedValue([
+        {
+          contentId: '9007199254740993',
+          name: 'TourAPI 관광지',
+          category: 'A02',
+          description: null,
+          businessHours: null,
+          closedDays: null,
+          address: 'TourAPI 주소',
+          latitude: 37.51,
+          longitude: 127.01,
+          imageUrl: 'https://example.com/tour.jpg',
+          homepageUrl: null,
+          distanceMeters: 1200,
+        },
+      ]),
+    };
+
     const result = await new RecommendationCandidateProvider(
       prisma as unknown as PrismaService,
+      tourism as never,
     ).getPool(dto);
+
     expect(prisma.filmingLocation.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 10n },
         include: { musicVideos: { include: { musicVideo: { include: { idol: true } } } } },
       }),
     );
-    expect(prisma.filmingLocation.findMany).toHaveBeenCalledTimes(1);
-    expect(result.candidatePool).toHaveLength(1);
-    expect(result.candidatePool[0].locationId).toBe('9007199254740993');
+    expect(tourism.getFilteredCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({
+        centerLatitude: 37.5,
+        centerLongitude: 127,
+        startName: 'DB 촬영지',
+        transportMode: TransportMode.TAXI,
+        travelStyles: [TravelStyle.PHOTO],
+        limit: 40,
+      }),
+    );
+    expect(result.fixedStartLocation).toMatchObject({
+      source: 'FILMING_LOCATION',
+      candidateId: 'PLACE_10',
+      locationId: '10',
+    });
+    expect(result.candidatePool).toEqual([
+      expect.objectContaining({
+        source: 'TOUR_API',
+        candidateId: 'TOUR_9007199254740993',
+        tourContentId: '9007199254740993',
+        name: 'TourAPI 관광지',
+        musicVideos: [],
+      }),
+    ]);
     expect(() => JSON.stringify(result)).not.toThrow();
   });
-  it('does not query pool if selected location is missing', async () => {
+
+  it('does not call TourismService if selected location is missing', async () => {
     const prisma = {
-      filmingLocation: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn() },
+      filmingLocation: { findUnique: jest.fn().mockResolvedValue(null) },
     };
+    const tourism = { getFilteredCandidates: jest.fn() };
+
     await expect(
-      new RecommendationCandidateProvider(prisma as unknown as PrismaService).getPool(dto),
+      new RecommendationCandidateProvider(
+        prisma as unknown as PrismaService,
+        tourism as never,
+      ).getPool(dto),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(prisma.filmingLocation.findMany).not.toHaveBeenCalled();
+    expect(tourism.getFilteredCandidates).not.toHaveBeenCalled();
   });
+
   it('builds dynamic enum from only this request pool', () => {
     const ids = input.candidatePool.map((p) => p.candidateId);
     expect(
@@ -315,6 +364,7 @@ describe('candidate provider and schema', () => {
     ).toEqual(ids);
   });
 });
+
 describe('Google Maps adapter', () => {
   const config = { getOrThrow: jest.fn().mockReturnValue('test-key') } as unknown as ConfigService;
   afterEach(() => jest.restoreAllMocks());
