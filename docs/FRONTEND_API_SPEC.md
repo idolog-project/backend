@@ -276,3 +276,16 @@ DB에 저장한 refresh token 해시와 브라우저 cookie를 함께 삭제한�
 | 404  | `NOT_FOUND`             | 촬영지·아이돌·저장 코스 없음               |
 | 409  | `DUPLICATE_EMAIL`       | 이메일 가입을 유지하는 경우의 중복 이메일  |
 | 503  | `RECOMMENDATION_FAILED` | 추천/TourAPI/OpenAI 호출 실패              |
+
+
+### TAXI/CAR 국내 자동차 경로 연동
+
+요청 transportMode와 외부 응답 필드는 유지한다. TAXI/CAR는 KakaoMobilityRouteAdapter의 카카오모빌리티 자동차 길찾기로 조회한다. WALK/BUS는 기존 Google 경로를 사용한다(WALK의 한국 지원 제한은 그대로).
+
+`GET https://apis-navi.kakaomobility.com/v1/directions`에 경도,위도 순서로 origin/destination을 전달하고 summary=true로 조회한다. 성공 result_code=0의 summary.distance(미터), summary.duration(초)를 기존 RouteLeg에 매핑한다. 현재 교통 기준 예상시간이며 요청 startTime의 미래 교통 예측이나 택시 대기시간은 포함하지 않는다. 이동시간을 임의 생성하거나 Google DRIVE로 대체하지 않는다.
+
+설정: `.env` 및 Railway에 `KAKAO_MOBILITY_API_KEY`를 추가한다. 카카오모빌리티 길찾기 사용 권한이 있는 카카오 REST API 키를 사용한다. 값이 없으면 TAXI/CAR 요청은 Gemini 호출 전에 KAKAO_API_KEY_MISSING으로 실패한다. 다른 모드의 기동을 막지 않도록 전역 필수 환경변수는 아니다. 키 값은 저장소나 로그에 기록하지 않는다.
+
+카카오 HTTP 오류, 경로 없음, 응답 형식 오류는 각각 KAKAO_HTTP_<status>, KAKAO_ROUTE_NOT_FOUND, KAKAO_INVALID_RESPONSE로 구분한다. 외부 503 RECOMMENDATION_FAILED 계약은 유지한다. 네트워크 재시도는 기존 제한 정책을 재사용한다.
+
+공식 API: https://developers.kakaomobility.com/guide/navi-api/directions.html
