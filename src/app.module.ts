@@ -5,6 +5,7 @@ import { validateEnvironment } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './domains/auth/auth.module';
 import { BookmarksModule } from './domains/bookmarks/bookmarks.module';
+import { CoursesModule } from './domains/courses/courses.module';
 import { FilmingLocationsModule } from './domains/filming-locations/filming-locations.module';
 import { IdolsModule } from './domains/idols/idols.module';
 import { MusicVideosModule } from './domains/music-videos/music-videos.module';
@@ -29,6 +30,7 @@ import { HealthModule } from './health/health.module';
     FilmingLocationsModule,
     TourismModule,
     RecommendationsModule,
+    CoursesModule,
     RoutesModule,
     BookmarksModule,
   ],
