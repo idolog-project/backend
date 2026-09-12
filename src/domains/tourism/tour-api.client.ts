@@ -34,6 +34,22 @@ export type TourPlace = {
 type TourApiItem = Record<string, string | undefined>;
 
 /**
+ * 이미지 주소를 https 로 맞춥니다. 값이 없으면 null 입니다.
+ *
+ * TourAPI 는 같은 이미지 서버를 http 로 주는 경우가 섞여 있습니다(제주 후보
+ * 실측에서 5개 중 4개가 http). 프론트는 HTTPS 로 서비스되므로 http 이미지는
+ * 브라우저가 mixed content 로 **조용히 차단**합니다. 콘솔에만 경고가 남고 화면
+ * 에는 빈 자리만 보여서, 사진이 없는 장소와 구별이 되지 않습니다.
+ *
+ * 같은 경로가 https 로도 200 을 주므로 여기서 한 번만 올려 둡니다.
+ */
+function secureImageUrl(raw: string | undefined): string | null {
+  const url = raw?.trim();
+  if (!url) return null;
+  return url.replace(/^http:\/\//i, 'https://');
+}
+
+/**
  * 한국관광공사 TourAPI 클라이언트입니다.
  *
  * `TourismService` 와 별도 파일로 둔 것은 의도한 것입니다. 그쪽은 도메인 규칙이
@@ -150,7 +166,7 @@ export class TourApiClient {
       latitude: Number(item.mapy),
       longitude: Number(item.mapx),
       // firstimage 는 값이 없을 때 빈 문자열로 옵니다.
-      imageUrl: item.firstimage?.trim() || null,
+      imageUrl: secureImageUrl(item.firstimage),
       distanceMeters: Number.isFinite(distance) ? Math.round(distance) : null,
     };
   }

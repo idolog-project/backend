@@ -63,6 +63,8 @@ export type AgentOrigin = {
   description: string | null;
   businessHours: string | null;
   closedDays: string | null;
+  /** 코스의 첫 장소로 나가는 사진입니다. 아직 채워지지 않은 촬영지가 많습니다. */
+  imageUrl: string | null;
   musicVideos: { title: string; idolName: string; releaseDate: string | null }[];
 };
 

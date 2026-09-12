@@ -112,7 +112,7 @@ export class FixedCourseAgent implements CourseAgent {
         address: origin.address,
         latitude: origin.latitude,
         longitude: origin.longitude,
-        imageUrl: null as string | null,
+        imageUrl: origin.imageUrl,
         overview: origin.description,
         category: '촬영지',
         stay: ORIGIN_STAY_SECONDS,

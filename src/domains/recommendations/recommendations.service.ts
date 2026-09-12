@@ -93,6 +93,7 @@ export class RecommendationsService {
       description: location.description,
       businessHours: location.businessHours,
       closedDays: location.closedDays,
+      imageUrl: location.imageUrl,
       musicVideos: location.musicVideos.map((link) => ({
         title: link.musicVideo.title,
         idolName: link.musicVideo.idol.name,
