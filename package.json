@@ -19,7 +19,8 @@
     "prisma:format": "prisma format",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
-    "prisma:seed:content": "ts-node -r dotenv/config prisma/seed-content.ts"
+    "prisma:seed:content": "ts-node -r dotenv/config prisma/seed-content.ts",
+    "prisma:backfill:images": "ts-node -r dotenv/config prisma/backfill-location-images.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
