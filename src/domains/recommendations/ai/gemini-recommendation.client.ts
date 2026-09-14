@@ -6,11 +6,12 @@ import { RecommendationAIClient } from './recommendation-ai-client.interface';
 import { PromptBuilder } from './prompt-builder.service';
 import { SYSTEM_INSTRUCTION } from './recommendation-system-instruction';
 import { recommendationSchema } from './recommendation-schema.factory';
-import { networkRetry } from './network-retry';
+import { networkRetry, retryable } from './network-retry';
 export const MODEL_NAME = 'gemini-3.6-flash';
 @Injectable()
 export class GeminiRecommendationClient extends RecommendationAIClient {
   private readonly client: GoogleGenAI;
+  private rateLimitedUntil = 0;
   constructor(
     config: ConfigService,
     private readonly prompt: PromptBuilder,
@@ -25,22 +26,35 @@ export class GeminiRecommendationClient extends RecommendationAIClient {
     });
   }
   async generateCourseDraft(input: PlanningInput): Promise<string> {
+    if (Date.now() < this.rateLimitedUntil) throw new PlanningError('GEMINI_RATE_LIMIT');
     try {
-      const response = await networkRetry(() =>
-        this.client.models.generateContent({
-          model: MODEL_NAME,
-          contents: this.prompt.build(input),
-          config: {
-            systemInstruction: SYSTEM_INSTRUCTION,
-            responseMimeType: 'application/json',
-            responseJsonSchema: recommendationSchema(input.candidatePool.map((p) => p.candidateId)),
-            maxOutputTokens: 8192,
-          },
-        }),
+      const response = await networkRetry(
+        () => {
+          if (Date.now() < this.rateLimitedUntil) throw new PlanningError('GEMINI_RATE_LIMIT');
+          return this.client.models.generateContent({
+            model: MODEL_NAME,
+            contents: this.prompt.build(input),
+            config: {
+              systemInstruction: SYSTEM_INSTRUCTION,
+              responseMimeType: 'application/json',
+              responseJsonSchema: recommendationSchema(
+                input.candidatePool.map((p) => p.candidateId),
+              ),
+              maxOutputTokens: 8192,
+            },
+          });
+        },
+        undefined,
+        (error) =>
+          !(error instanceof Error && Number(Reflect.get(error, 'status')) === 429) &&
+          retryable(error),
       );
       return response.text ?? '';
     } catch (error) {
+      if (error instanceof PlanningError) throw error;
       const status = error instanceof Error ? Number(Reflect.get(error, 'status')) : 0;
+      // This process shares a short cooldown across requests; provider quotas may last longer.
+      if (status === 429) this.rateLimitedUntil = Date.now() + 60000;
       throw new PlanningError(
         status === 429
           ? 'GEMINI_RATE_LIMIT'
