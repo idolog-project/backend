@@ -13,12 +13,13 @@ export function retryable(error: unknown): boolean {
 export async function networkRetry<T>(
   operation: () => Promise<T>,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  shouldRetry: (error: unknown) => boolean = retryable,
 ): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await operation();
     } catch (error) {
-      if (attempt >= 2 || !retryable(error)) throw error;
+      if (attempt >= 2 || !shouldRetry(error)) throw error;
       await sleep(250 * 2 ** attempt + Math.floor(Math.random() * 200));
     }
   }
