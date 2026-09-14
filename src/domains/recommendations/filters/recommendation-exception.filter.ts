@@ -13,6 +13,12 @@ export class RecommendationExceptionFilter implements ExceptionFilter {
     const request = context.getRequest<Request>();
     const response = context.getResponse<Response>();
     const exceptionResponse = exception.getResponse();
+    const code =
+      typeof exceptionResponse === 'object' &&
+      exceptionResponse !== null &&
+      'code' in exceptionResponse
+        ? String(exceptionResponse.code)
+        : 'RECOMMENDATION_FAILED';
     const message =
       typeof exceptionResponse === 'object' &&
       exceptionResponse !== null &&
@@ -25,8 +31,6 @@ export class RecommendationExceptionFilter implements ExceptionFilter {
       exception.stack,
     );
 
-    response
-      .status(HttpStatus.SERVICE_UNAVAILABLE)
-      .json(createErrorResponse(null, 'RECOMMENDATION_FAILED', message));
+    response.status(HttpStatus.SERVICE_UNAVAILABLE).json(createErrorResponse(null, code, message));
   }
 }

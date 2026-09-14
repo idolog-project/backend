@@ -22,7 +22,7 @@ import { RecommendationsService } from './recommendations.service';
 import { MapRouteService } from './route/map-route.service';
 import { RouteFeasibilityValidator } from './route/route-feasibility.validator';
 import { GoogleMapsRouteAdapter } from './route/google-maps-route.adapter';
-import { RecommendationCandidate } from './types/planning.type';
+import { RecommendationCandidate, PlanningError } from './types/planning.type';
 
 const place = (id: number): RecommendationCandidate => ({
   source: id === 1 ? 'FILMING_LOCATION' : 'TOUR_API',
@@ -248,4 +248,26 @@ describe('Recommendation HTTP contract', () => {
     });
     expect(JSON.stringify(response.body)).not.toContain('private upstream details');
   });
+  it.each([
+    ['GEMINI_DAILY_LIMIT', 'AI_DAILY_LIMIT_EXCEEDED', '일일 사용 한도'],
+    ['GEMINI_RATE_LIMIT', 'AI_RATE_LIMITED', '요청 한도'],
+  ])(
+    'exposes a safe dedicated response for %s without repair or map calls',
+    async (reason, code, message) => {
+      ai.generateCourseDraft.mockRejectedValue(new PlanningError(reason));
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/recommendations')
+        .auth(token, { type: 'bearer' })
+        .send(body)
+        .expect(503);
+      expect(response.body).toMatchObject({
+        isSuccess: false,
+        code,
+        result: null,
+        message: expect.stringContaining(message),
+      });
+      expect(ai.generateCourseDraft).toHaveBeenCalledTimes(1);
+      expect(map.compute).not.toHaveBeenCalled();
+    },
+  );
 });

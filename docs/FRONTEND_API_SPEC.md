@@ -291,3 +291,16 @@ DB에 저장한 refresh token 해시와 브라우저 cookie를 함께 삭제한�
 공식 API: https://developers.kakaomobility.com/guide/navi-api/directions.html
 
 카카오 `KAKAO_ROUTE_NOT_FOUND`도 Google 경로 없음과 동일하게 문제 구간의 후보 ID를 AI에 전달하여 최대 1회 재계획한다. 재계획 후에도 경로가 없으면 원인 코드를 유지하고 외부에는 `503 RECOMMENDATION_FAILED`를 반환한다. 인증·권한 오류는 재계획하지 않는다.
+
+### AI 요청 제한 응답
+
+HTTP 상태는 503, 공통 봉투 `{ isSuccess: false, code, message, result: null }`는 유지한다.
+
+| code | 의미 | message |
+| --- | --- | --- |
+| `AI_DAILY_LIMIT_EXCEEDED` | 공급자 quota 정보에서 확인된 일일 한도 초과 | AI 일일 사용 한도에 도달해 코스를 생성할 수 없습니다. 한도가 초기화된 후 다시 이용해주세요. |
+| `AI_RATE_LIMITED` | 분당 제한 또는 종류를 확인할 수 없는 429 | AI 서비스의 요청 한도에 도달했습니다. 잠시 후 다시 시도해주세요. |
+| `RECOMMENDATION_FAILED` | 그 외 추천 실패 | 추천 코스를 생성할 수 없습니다. |
+
+프론트는 위 code를 분기하거나 message를 표시할 수 있다. 일일 한도 오류를 자동 재요청하지 않는다.
+백엔드도 Gemini 429를 즉시 재시도하지 않으며 같은 서버에서 60초 동안 추가 호출을 차단한다.
