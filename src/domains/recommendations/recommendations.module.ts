@@ -1,15 +1,41 @@
-import { Module } from '@nestjs/common';
-
-import { TourismModule } from '../tourism/tourism.module';
-import { FixedCourseAgent } from './fixed-course.agent';
 import { COURSE_AGENT } from './recommendation.types';
+import { PlanningCourseAgent } from './planning-course.agent';
+import { KakaoMobilityRouteAdapter } from './route/kakao-mobility-route.adapter';
+import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
+import { PrismaModule } from '../../prisma/prisma.module';
+import { TourismModule } from '../tourism/tourism.module';
 import { RecommendationsController } from './recommendations.controller';
 import { RecommendationsService } from './recommendations.service';
+import { RecommendationOrchestrator } from './application/recommendation-orchestrator.service';
+import { RecommendationCandidateProvider } from './candidate/recommendation-candidate.provider';
+import { CandidatePoolGuard } from './candidate/candidate-pool.guard';
+import { RecommendationAIClient } from './ai/recommendation-ai-client.interface';
+import { GeminiRecommendationClient } from './ai/gemini-recommendation.client';
+import { PromptBuilder } from './ai/prompt-builder.service';
+import { AIOutputValidator } from './ai/ai-output.validator';
+import { MapRouteService } from './route/map-route.service';
+import { GoogleMapsRouteAdapter } from './route/google-maps-route.adapter';
+import { RouteFeasibilityValidator } from './route/route-feasibility.validator';
+import { CourseAssembler } from './assembler/course-assembler.service';
 
 @Module({
-  imports: [TourismModule],
+  imports: [AuthModule, PrismaModule, TourismModule],
   controllers: [RecommendationsController],
-  // 실제 AI 에이전트가 준비되면 이 한 줄의 구현만 갈아끼우면 됩니다.
-  providers: [RecommendationsService, { provide: COURSE_AGENT, useClass: FixedCourseAgent }],
+  providers: [
+    RecommendationsService,
+    { provide: COURSE_AGENT, useClass: PlanningCourseAgent },
+    RecommendationOrchestrator,
+    RecommendationCandidateProvider,
+    CandidatePoolGuard,
+    PromptBuilder,
+    AIOutputValidator,
+    MapRouteService,
+    GoogleMapsRouteAdapter,
+    KakaoMobilityRouteAdapter,
+    RouteFeasibilityValidator,
+    CourseAssembler,
+    { provide: RecommendationAIClient, useClass: GeminiRecommendationClient },
+  ],
 })
 export class RecommendationsModule {}

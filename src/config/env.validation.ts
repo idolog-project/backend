@@ -20,8 +20,11 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
     GOOGLE_CLIENT_SECRET: Joi.string().required(),
     GOOGLE_CALLBACK_URL: Joi.string().uri().required(),
     OAUTH_SESSION_SECRET: Joi.string().min(32).required(),
-    OPENAI_API_KEY: Joi.string().required(),
+    GEMINI_API_KEY: Joi.string().required(),
+    GEMINI_TIMEOUT_MS: Joi.number().integer().min(1000).max(120000).default(60000),
+    RECOMMENDATION_STANDALONE_ENABLED: Joi.boolean().default(false),
     TOUR_API_SERVICE_KEY: Joi.string().required(),
+    KAKAO_MOBILITY_API_KEY: Joi.string().trim().empty('').optional(),
     GOOGLE_MAPS_API_KEY: Joi.string().required(),
   }).unknown(true);
 

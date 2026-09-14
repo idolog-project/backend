@@ -31,6 +31,10 @@ export class RecommendationsService {
     @Inject(COURSE_AGENT) private readonly courseAgent: CourseAgent,
   ) {}
 
+  async createRecommendation(dto: CreateRecommendationDto, language: TourLanguage = 'ko') {
+    return { courses: await this.recommend(dto, language) };
+  }
+
   /** 입력을 모아 에이전트에 넘기고 결과를 그대로 돌려줍니다. */
   async recommend(dto: CreateRecommendationDto, language: TourLanguage): Promise<Course[]> {
     const context = await this.buildAgentContext(dto, language);
