@@ -9,7 +9,13 @@ import { RouteFeasibilityValidator } from '../route/route-feasibility.validator'
 import { CourseAssembler } from '../assembler/course-assembler.service';
 import { CreateRecommendationDto } from '../dto/create-recommendation.dto';
 import { RecommendationFailedException } from '../exceptions/recommendation-failed.exception';
-import { AIRecommendationDraft, PlanningError, PlanningInput, RULES } from '../types/planning.type';
+import {
+  AIRecommendationDraft,
+  PlanningError,
+  PlanningInput,
+  RULES,
+  UnreachableRouteError,
+} from '../types/planning.type';
 import { MODEL_NAME } from '../ai/gemini-recommendation.client';
 import { PROMPT_VERSION } from '../ai/recommendation-system-instruction';
 import { SCHEMA_VERSION } from '../ai/recommendation-schema.factory';
@@ -83,6 +89,7 @@ export class RecommendationOrchestrator {
             input.feedback = {
               kind: 'REPAIR',
               violations: { code: error.code, priorFeedback: input.feedback },
+              previousResponse: raw.slice(0, 32000),
             };
           }
         }
@@ -93,6 +100,25 @@ export class RecommendationOrchestrator {
         let routed;
         try {
           routed = await this.maps.route(draft, input, this.guard.validate(draft, input));
+        } catch (error) {
+          if (!(error instanceof UnreachableRouteError) || metrics.replanCount >= 1) throw error;
+          metrics.validationFailureReason = error.code;
+          metrics.replanCount++;
+          input.feedback = {
+            kind: 'REPLAN',
+            previousDraft: draft,
+            violations: [
+              {
+                courseType: error.courseType,
+                violation: {
+                  type: error.code,
+                  fromCandidateId: error.fromCandidateId,
+                  toCandidateId: error.toCandidateId,
+                },
+              },
+            ],
+          };
+          continue;
         } finally {
           metrics.mapApiLatencyMs += Date.now() - mapStart;
         }

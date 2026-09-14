@@ -1,3 +1,4 @@
+import { KakaoMobilityRouteAdapter } from './route/kakao-mobility-route.adapter';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../../prisma/prisma.module';
@@ -11,7 +12,6 @@ import { RecommendationAIClient } from './ai/recommendation-ai-client.interface'
 import { GeminiRecommendationClient } from './ai/gemini-recommendation.client';
 import { PromptBuilder } from './ai/prompt-builder.service';
 import { AIOutputValidator } from './ai/ai-output.validator';
-import { KakaoMobilityRouteAdapter } from './route/kakao-mobility-route.adapter';
 import { MapRouteService } from './route/map-route.service';
 import { GoogleMapsRouteAdapter } from './route/google-maps-route.adapter';
 import { RouteFeasibilityValidator } from './route/route-feasibility.validator';

@@ -1,4 +1,12 @@
-import { Body, Controller, Post, UseFilters, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseFilters,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -23,6 +31,7 @@ export class RecommendationsController {
   constructor(private readonly recommendationsService: RecommendationsService) {}
 
   @Post()
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '조건 기반 여행 코스 추천' })
   @ApiOkResponse({ description: '서로 다른 추천 코스 3개 생성 성공' })
   @ApiBadRequestResponse({ description: '요청값 검증 실패' })

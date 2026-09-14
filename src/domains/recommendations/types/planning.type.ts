@@ -50,6 +50,7 @@ export interface PlanningInput {
     kind: 'REPAIR' | 'REPLAN';
     violations: unknown;
     previousDraft?: AIRecommendationDraft;
+    previousResponse?: string;
   };
 }
 
@@ -67,6 +68,17 @@ export interface RoutedCourse {
 
 export class PlanningError extends Error {
   constructor(public readonly code: string) {
+    super(code);
+  }
+}
+
+export class UnreachableRouteError extends PlanningError {
+  constructor(
+    readonly courseType: string,
+    readonly fromCandidateId: string,
+    readonly toCandidateId: string,
+    code: 'MAP_ROUTE_NOT_FOUND' | 'KAKAO_ROUTE_NOT_FOUND' = 'MAP_ROUTE_NOT_FOUND',
+  ) {
     super(code);
   }
 }

@@ -252,6 +252,12 @@ AI가 선택한 순서를 실제 지도 API로 계산한 뒤 다음을 검증한
 - 시작 촬영지 변경 여부
 
 지도 계산 후 문제가 있으면 최대 1회 Replan한다.
+길찾기 결과가 없는 구간도 출발·도착 후보 ID를 AI에 전달해 최대 1회 Replan한다.
+동시에 계산 중인 코스가 모두 끝난 후 재계획하며, 인증 오류나 지도 서비스 장애는 재계획하지 않는다.
+
+AI 입력의 `planningConstraints`에는 시작 촬영지 체류시간(1시간), 후속 장소 수(2~5개),
+체류시간 범위, 사용 가능 시간과 자정 제한을 반영한 전체 일정 예산을 명시한다.
+운영시간이나 반려동물 허용 여부가 후보 데이터에 없으면 AI가 확인된 사실로 안내하지 않도록 한다.
 
 ## 12. Repair / Replan
 
@@ -264,11 +270,16 @@ Repair 최대 1회:
 - 동일 코스
 - 순서 오류
 
+Repair에는 오류 코드와 직전 응답(최대 32,000자)을 함께 전달한다.
+
 Replan 최대 1회:
 
 - 실제 경로가 사용 가능 시간을 초과
 - 한 구간 이동이 너무 김
 - 당일 완료 불가
+- 지도에서 이동 가능한 경로를 찾지 못한 구간
+
+시간 초과와 이동 불가 재계획은 합산해서 최대 1회이며, API 인증·권한 오류에는 적용하지 않는다.
 
 ## 13. 최종 응답
 
@@ -294,21 +305,28 @@ TourAPI 후보는 `locationId` 대신 `tourContentId`를 가질 수 있다.
 
 ## 14. 검증 상태
 
-현재 수정본에서 확인한 항목:
+첨부 프론트의 `src/api/schemas.ts`, `endpoints.ts`, `client.ts` 계약과 대조했다.
+외부 경로는 `POST /api/v1/recommendations` 하나이며 성공 상태는 HTTP 200이다.
+응답은 공통 `{ isSuccess, code, message, result }` 봉투 안에 `result.courses`로 제공한다.
+최종 결과는 서로 다른 A/B/C 코스 3개이고, 후보 부족 시 빈 배열이다.
 
 ```text
 npm run build   → 통과
 npm run lint    → 통과
-npx tsc --noEmit → 통과
+npm test -- --runInBand --silent → 7 suites / 85 tests 통과
 ```
 
-첨부 ZIP의 Jest 실행 환경에서는 transform 설정의 `ts-jest`를 Jest가 찾지 못하는 기존 환경 문제가 있어 `npm test`는 실행되지 않았다.
-테스트 소스 자체의 TypeScript 타입 검사는 `npx tsc --noEmit`으로 통과했다.
+HTTP 통합 테스트는 실제 Nest 컨트롤러, JWT Guard, DTO 검증, 추천 파이프라인,
+응답 인터셉터와 예외 필터를 실행한다. 외부 후보 조회·AI·지도 호출만 테스트 대역으로 교체한다.
+성공 응답, 3개 경로 차별성, 인증 실패, 잘못된 입력, 후보 부족, 촬영지 없음,
+외부 서비스 실패 시 비공개 오류 내용이 노출되지 않는 것을 확인한다.
+제한된 실행 환경에서는 HTTP 테스트용 로컬 포트 열기 권한이 필요하다.
 
-## 15. 남은 작업
+## 15. 실제 연동 조건과 전처리 범위
 
 - 전처리 파트에서 운영시간/휴무/주차/반려동물 상세 필터 추가
 - 필요 시 `detailCommon2`를 이용해 overview/homepage 보강
-- 실제 TourAPI 서비스키로 locationBasedList2 통합 호출 검증
-- Gemini → OpenAI 전환 시 `RecommendationAIClient` 구현체만 교체
-- 실제 Railway DB + TourAPI + 지도 API + AI 전체 E2E 검증
+- 현재 AI 구현체는 Gemini이다. 기획서의 공급자 표기를 이유로 기존 구현체를 변경하지 않았다.
+- TAXI/CAR에는 `KAKAO_MOBILITY_API_KEY`, WALK/BUS에는 `GOOGLE_MAPS_API_KEY`가 필요하다.
+- 실제 DB + TourAPI + 지도 API + Gemini 전체 호출은 이번 자동 테스트에 포함되지 않는다.
+- `.env`의 키 설정 여부만 확인했으며 키 값을 출력하거나 변경하지 않았다.

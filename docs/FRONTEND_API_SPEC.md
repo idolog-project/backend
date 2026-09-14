@@ -289,3 +289,5 @@ DB에 저장한 refresh token 해시와 브라우저 cookie를 함께 삭제한�
 카카오 HTTP 오류, 경로 없음, 응답 형식 오류는 각각 KAKAO_HTTP_<status>, KAKAO_ROUTE_NOT_FOUND, KAKAO_INVALID_RESPONSE로 구분한다. 외부 503 RECOMMENDATION_FAILED 계약은 유지한다. 네트워크 재시도는 기존 제한 정책을 재사용한다.
 
 공식 API: https://developers.kakaomobility.com/guide/navi-api/directions.html
+
+카카오 `KAKAO_ROUTE_NOT_FOUND`도 Google 경로 없음과 동일하게 문제 구간의 후보 ID를 AI에 전달하여 최대 1회 재계획한다. 재계획 후에도 경로가 없으면 원인 코드를 유지하고 외부에는 `503 RECOMMENDATION_FAILED`를 반환한다. 인증·권한 오류는 재계획하지 않는다.

@@ -18,7 +18,9 @@ import {
   AIRecommendationDraft,
   PlanningInput,
   RecommendationCandidate,
+  PlanningError,
 } from './types/planning.type';
+import { PromptBuilder } from './ai/prompt-builder.service';
 import {
   CreateRecommendationDto,
   TransportMode,
@@ -91,6 +93,22 @@ function setup() {
   return { provider, ai, adapter, service: new RecommendationsService(orchestrator) };
 }
 describe('Recommendation pipeline', () => {
+  it.each([TransportMode.WALK, TransportMode.BUS])(
+    'routes %s courses through the Google adapter',
+    async (transportMode) => {
+      const { service, adapter } = setup();
+      await expect(service.createRecommendation({ ...dto, transportMode })).resolves.toHaveProperty(
+        'courses',
+      );
+      expect(adapter.compute).toHaveBeenCalledTimes(6);
+      expect(adapter.compute).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Object),
+        transportMode,
+        expect.any(String),
+      );
+    },
+  );
   it('assembles three fixed-start courses from canonical DB and map data', async () => {
     const { service, adapter } = setup();
     const result = await service.createRecommendation(dto);
@@ -168,6 +186,7 @@ describe('Recommendation pipeline', () => {
     const second = ai.generateCourseDraft.mock.calls[1][0] as PlanningInput;
     expect(second.candidatePool).toEqual(pool.candidatePool);
     expect(second.fixedStartLocation).toEqual(pool.fixedStartLocation);
+    expect(second.feedback?.previousResponse).toBe('{broken');
   });
   it('stops after two invalid JSON responses', async () => {
     const { service, ai } = setup();
@@ -214,6 +233,50 @@ describe('Recommendation pipeline', () => {
     );
     expect(ai.generateCourseDraft).toHaveBeenCalledTimes(2);
   });
+  it.each(['MAP_ROUTE_NOT_FOUND', 'KAKAO_ROUTE_NOT_FOUND'])(
+    'replans %s with its endpoints',
+    async (code) => {
+      const { service, ai, adapter } = setup();
+      adapter.compute.mockRejectedValueOnce(new PlanningError(code));
+      const result = await service.createRecommendation(dto);
+      expect(result.courses).toHaveLength(3);
+      expect(ai.generateCourseDraft).toHaveBeenCalledTimes(2);
+      const second = ai.generateCourseDraft.mock.calls[1][0] as PlanningInput;
+      expect(second.feedback).toMatchObject({
+        kind: 'REPLAN',
+        previousDraft: draft(),
+        violations: [
+          {
+            courseType: 'A',
+            violation: {
+              type: code,
+              fromCandidateId: 'PLACE_10',
+              toCandidateId: 'PLACE_11',
+            },
+          },
+        ],
+      });
+    },
+  );
+  it.each(['MAP_ROUTE_NOT_FOUND', 'KAKAO_ROUTE_NOT_FOUND'])(
+    'limits replanning for %s',
+    async (code) => {
+      const { service, ai, adapter } = setup();
+      adapter.compute.mockRejectedValue(new PlanningError(code));
+      await expect(service.createRecommendation(dto)).rejects.toMatchObject({
+        failureReason: code,
+      });
+      expect(ai.generateCourseDraft).toHaveBeenCalledTimes(2);
+    },
+  );
+  it.each(['MAP_HTTP_403', 'KAKAO_HTTP_403'])('does not replan provider error %s', async (code) => {
+    const { service, ai, adapter } = setup();
+    adapter.compute.mockRejectedValue(new PlanningError(code));
+    await expect(service.createRecommendation(dto)).rejects.toMatchObject({
+      failureReason: code,
+    });
+    expect(ai.generateCourseDraft).toHaveBeenCalledTimes(1);
+  });
   it('enforces total available hours and the same-day boundary', async () => {
     const { service, ai } = setup();
     await expect(
@@ -227,6 +290,25 @@ describe('Recommendation pipeline', () => {
     await expect(
       s.service.createRecommendation({ ...dto, availableHours: 2 }),
     ).rejects.toBeInstanceOf(RecommendationFailedException);
+  });
+});
+describe('Planner schedule context', () => {
+  it.each([
+    ['09:00', 2, 7200],
+    ['23:00', 8, 3599],
+  ])('provides a bounded stay and travel budget for %s', (startTime, availableHours, budget) => {
+    const prompt = JSON.parse(
+      new PromptBuilder().build({
+        ...input,
+        userConditions: { ...dto, startTime, availableHours },
+      }),
+    ) as { planningConstraints: Record<string, number> };
+    expect(prompt.planningConstraints).toMatchObject({
+      fixedStartStaySeconds: 3600,
+      minFollowingStops: 2,
+      maxFollowingStops: 5,
+      maxTotalDurationSeconds: budget,
+    });
   });
 });
 describe('network retry', () => {
