@@ -1,5 +1,7 @@
+import type { TourLanguage } from '../tourism/tour-api.client';
 import {
   Body,
+  Headers,
   Controller,
   HttpCode,
   HttpStatus,
@@ -37,7 +39,24 @@ export class RecommendationsController {
   @ApiBadRequestResponse({ description: '요청값 검증 실패' })
   @ApiUnauthorizedResponse({ description: 'access token 누락, 만료 또는 유효하지 않음' })
   @ApiServiceUnavailableResponse({ description: '추천 엔진 호출 실패' })
-  createRecommendation(@Body() dto: CreateRecommendationDto) {
-    return this.recommendationsService.createRecommendation(dto);
+  createRecommendation(
+    @Body() dto: CreateRecommendationDto,
+    @Headers('accept-language') language?: string,
+  ) {
+    return this.recommendationsService.createRecommendation(dto, resolveLanguage(language));
   }
+  @Post('context')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'AI 추천 입력 조회' })
+  buildContext(
+    @Body() dto: CreateRecommendationDto,
+    @Headers('accept-language') language?: string,
+  ) {
+    return this.recommendationsService.buildAgentContext(dto, resolveLanguage(language));
+  }
+}
+
+function resolveLanguage(header?: string): TourLanguage {
+  const primary = header?.split(',')[0]?.trim().toLowerCase().split('-')[0];
+  return primary === 'en' || primary === 'zh' ? primary : 'ko';
 }

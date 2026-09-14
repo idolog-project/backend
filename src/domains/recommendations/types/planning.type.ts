@@ -43,6 +43,7 @@ export interface AIRecommendationDraft {
 }
 
 export interface PlanningInput {
+  language?: 'ko' | 'en' | 'zh';
   userConditions: CreateRecommendationDto;
   fixedStartLocation: RecommendationCandidate;
   candidatePool: RecommendationCandidate[];

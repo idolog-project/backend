@@ -13,7 +13,6 @@ import { GoogleMapsRouteAdapter } from './route/google-maps-route.adapter';
 import { MapRouteService, departureDate } from './route/map-route.service';
 import { RouteFeasibilityValidator } from './route/route-feasibility.validator';
 import { RecommendationFailedException } from './exceptions/recommendation-failed.exception';
-import { RecommendationsService } from './recommendations.service';
 import {
   AIRecommendationDraft,
   PlanningInput,
@@ -90,7 +89,14 @@ function setup() {
     new RouteFeasibilityValidator(),
     new CourseAssembler(),
   );
-  return { provider, ai, adapter, service: new RecommendationsService(orchestrator) };
+  return {
+    provider,
+    ai,
+    adapter,
+    service: {
+      createRecommendation: (value: CreateRecommendationDto) => orchestrator.recommend(value),
+    },
+  };
 }
 describe('Recommendation pipeline', () => {
   it.each([TransportMode.WALK, TransportMode.BUS])(

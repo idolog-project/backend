@@ -1,3 +1,5 @@
+import { COURSE_AGENT } from './recommendation.types';
+import { PlanningCourseAgent } from './planning-course.agent';
 import { KakaoMobilityRouteAdapter } from './route/kakao-mobility-route.adapter';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
@@ -22,6 +24,7 @@ import { CourseAssembler } from './assembler/course-assembler.service';
   controllers: [RecommendationsController],
   providers: [
     RecommendationsService,
+    { provide: COURSE_AGENT, useClass: PlanningCourseAgent },
     RecommendationOrchestrator,
     RecommendationCandidateProvider,
     CandidatePoolGuard,

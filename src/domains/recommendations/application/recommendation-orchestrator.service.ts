@@ -31,7 +31,11 @@ export class RecommendationOrchestrator {
     private readonly feasibility: RouteFeasibilityValidator,
     private readonly assembler: CourseAssembler,
   ) {}
-  async recommend(dto: CreateRecommendationDto) {
+  async recommend(
+    dto: CreateRecommendationDto,
+    preparedPool?: Pick<PlanningInput, 'fixedStartLocation' | 'candidatePool'>,
+    language: 'ko' | 'en' | 'zh' = 'ko',
+  ) {
     const started = Date.now();
     const metrics = {
       requestId: randomUUID(),
@@ -47,7 +51,7 @@ export class RecommendationOrchestrator {
       validationFailureReason: '',
     };
     try {
-      const pool = await this.candidates.getPool(dto);
+      const pool = preparedPool ?? (await this.candidates.getPool(dto));
       metrics.candidateCount = pool.candidatePool.length;
       // Three pairwise-distinct sequences with at least two following stops need >=3 candidates.
       if (
@@ -60,6 +64,7 @@ export class RecommendationOrchestrator {
       this.maps.assertConfigured(dto.transportMode);
       const input: PlanningInput = {
         ...pool,
+        language,
         userConditions: {
           ...dto,
           startTime: dto.startTime ?? '09:00',

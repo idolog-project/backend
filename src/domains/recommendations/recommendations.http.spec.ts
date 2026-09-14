@@ -1,3 +1,7 @@
+import { PrismaService } from '../../prisma/prisma.service';
+import { TourApiClient } from '../tourism/tour-api.client';
+import { COURSE_AGENT } from './recommendation.types';
+import { PlanningCourseAgent } from './planning-course.agent';
 import { KakaoMobilityRouteAdapter } from './route/kakao-mobility-route.adapter';
 import { INestApplication, Logger, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -43,7 +47,7 @@ const rawDraft = JSON.stringify({
     summary: '당일 여행',
     reason: '취향을 반영했습니다.',
     stops: [2 + i, 2 + ((i + 1) % 3)].map((id, j) => ({
-      candidateId: String(id),
+      candidateId: `TOUR_ko_${id}`,
       order: j + 2,
       recommendedStaySeconds: 900,
       selectionReason: '근처 관광지입니다.',
@@ -66,6 +70,16 @@ describe('Recommendation HTTP contract', () => {
       controllers: [RecommendationsController],
       providers: [
         RecommendationsService,
+        { provide: COURSE_AGENT, useClass: PlanningCourseAgent },
+        { provide: TourApiClient, useValue: { findNearby: candidates.getPool } },
+        {
+          provide: PrismaService,
+          useValue: {
+            filmingLocation: {
+              findUnique: jest.fn().mockResolvedValue({ ...place(1), id: 1n, musicVideos: [] }),
+            },
+          },
+        },
         RecommendationOrchestrator,
         CourseAssembler,
         AIOutputValidator,
@@ -93,10 +107,16 @@ describe('Recommendation HTTP contract', () => {
   });
   beforeEach(() => {
     jest.clearAllMocks();
-    candidates.getPool.mockResolvedValue({
-      fixedStartLocation: place(1),
-      candidatePool: [2, 3, 4].map(place),
-    });
+    candidates.getPool.mockResolvedValue(
+      [2, 3, 4].map((id) => ({
+        ...place(id),
+        contentId: String(id),
+        contentTypeId: '12',
+        title: `장소 ${id}`,
+        language: 'ko',
+        distanceMeters: 100,
+      })),
+    );
     ai.generateCourseDraft.mockResolvedValue(rawDraft);
     map.compute.mockResolvedValue({ distanceMeters: 1200, durationSeconds: 600 });
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -134,7 +154,7 @@ describe('Recommendation HTTP contract', () => {
     ).toBe(3);
     for (const course of data.result.courses) {
       expect(course.places[0]).toMatchObject({
-        candidateId: '1',
+        candidateId: 'PLACE_1',
         arrivalTime: '09:00',
         distanceFromPrevMeters: null,
       });
@@ -149,6 +169,37 @@ describe('Recommendation HTTP contract', () => {
     await request(app.getHttpServer()).post('/api/v1/recommendations').send(body).expect(401);
     expect(candidates.getPool).not.toHaveBeenCalled();
     expect(ai.generateCourseDraft).not.toHaveBeenCalled();
+  });
+  it('preserves the context endpoint and language-specific preprocessing without AI calls', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/recommendations/context')
+      .auth(token, { type: 'bearer' })
+      .set('Accept-Language', 'en-US,en;q=0.9')
+      .send(body)
+      .expect(200);
+    expect(response.body).toMatchObject({ result: { language: 'en', origin: { id: 1 } } });
+    expect(candidates.getPool).toHaveBeenCalledWith(
+      expect.objectContaining({ language: 'en', contentTypeId: '12' }),
+    );
+    expect(ai.generateCourseDraft).not.toHaveBeenCalled();
+    expect(map.compute).not.toHaveBeenCalled();
+  });
+  it('passes the prepared language and candidates to AI without fetching another pool', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/recommendations')
+      .auth(token, { type: 'bearer' })
+      .set('Accept-Language', 'zh-Hans')
+      .send(body)
+      .expect(200);
+    expect(candidates.getPool).toHaveBeenCalledTimes(1);
+    expect(ai.generateCourseDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        language: 'zh',
+        candidatePool: expect.arrayContaining([
+          expect.objectContaining({ candidateId: 'TOUR_ko_2' }),
+        ]),
+      }),
+    );
   });
   it.each([
     { travelStyles: [] },
@@ -166,7 +217,7 @@ describe('Recommendation HTTP contract', () => {
     expect(candidates.getPool).not.toHaveBeenCalled();
   });
   it('returns an empty course list when preprocessing finds too few candidates', async () => {
-    candidates.getPool.mockResolvedValue({ fixedStartLocation: place(1), candidatePool: [] });
+    candidates.getPool.mockResolvedValue([]);
     const response = await request(app.getHttpServer())
       .post('/api/v1/recommendations')
       .auth(token, { type: 'bearer' })
