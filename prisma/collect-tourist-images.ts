@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
  *   npm run collect:tourist-images
  *   npm run collect:tourist-images -- --dry-run
  *   npm run collect:tourist-images -- --force
+ *   npm run collect:tourist-images -- --repair --dry-run
  *
  * 이미지 파일을 내려받거나 저장하지 않고, 검색 결과가 가리키는 원본 URL과 출처만 DB에 기록합니다.
  */
@@ -57,11 +58,30 @@ function nonNegativeInteger(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
 }
 
-function isUsableImageUrl(value: string | null): value is string {
+function getImageReferer(): string {
+  const configured = process.env.FRONTEND_URL?.trim();
+  if (!configured) {
+    throw new Error('FRONTEND_URL 이 비어 있습니다. HTTPS 프론트 주소를 설정하세요.');
+  }
+  try {
+    const url = new URL(configured);
+    if (url.protocol !== 'https:') {
+      throw new Error('FRONTEND_URL 은 HTTPS 주소여야 합니다.');
+    }
+    return url.origin + '/';
+  } catch {
+    throw new Error('FRONTEND_URL 은 유효한 HTTPS 프론트 주소여야 합니다.');
+  }
+}
+
+function isUsableImageUrl(value: string | null, referer: string): value is string {
   if (!value) return false;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:';
+    // HTTPS 프론트에서는 http 이미지를 mixed content로 차단하므로 수집하지 않습니다.
+    if (url.protocol !== 'https:' || new URL(referer).protocol !== 'https:') return false;
+    // 검색 결과에 지도 캡처가 섞일 수 있으나, 대표 장소 사진으로 쓰지 않습니다.
+    return !url.hostname.startsWith('simg.pstatic.net') && !url.pathname.includes('static.map');
   } catch {
     return false;
   }
@@ -70,11 +90,11 @@ function isUsableImageUrl(value: string | null): value is string {
 /**
  * 충분한 해상도의 사진을 우선 선택하되, 검색 결과가 적을 때는 유효한 원본 이미지로 완화합니다.
  */
-function selectImage(documents: KakaoImageDocument[]): SelectedImage | null {
+function rankImageCandidates(documents: KakaoImageDocument[], referer: string): SelectedImage[] {
   const candidates = documents
     .map((document) => {
       const imageUrl = text(document.image_url);
-      if (!isUsableImageUrl(imageUrl)) return null;
+      if (!isUsableImageUrl(imageUrl, referer)) return null;
       return {
         imageUrl,
         imageSource: text(document.display_sitename),
@@ -85,17 +105,50 @@ function selectImage(documents: KakaoImageDocument[]): SelectedImage | null {
     })
     .filter((candidate): candidate is SelectedImage => candidate !== null);
 
-  return (
-    candidates.find(
-      (candidate) =>
-        candidate.width !== null &&
-        candidate.height !== null &&
-        candidate.width >= MIN_WIDTH &&
-        candidate.height >= MIN_HEIGHT,
-    ) ??
-    candidates[0] ??
-    null
-  );
+  return candidates.sort((left, right) => {
+    const leftPreferred =
+      left.width !== null &&
+      left.height !== null &&
+      left.width >= MIN_WIDTH &&
+      left.height >= MIN_HEIGHT;
+    const rightPreferred =
+      right.width !== null &&
+      right.height !== null &&
+      right.width >= MIN_WIDTH &&
+      right.height >= MIN_HEIGHT;
+    return Number(rightPreferred) - Number(leftPreferred);
+  });
+}
+
+/**
+ * Daum 검색 결과는 외부 원본 URL이므로, 실제 프론트에서 직접 로드할 수 있는지 확인합니다.
+ */
+async function isBrowserLoadableImage(imageUrl: string, referer: string): Promise<boolean> {
+  try {
+    const response = await fetch(imageUrl, {
+      headers: {
+        Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        Referer: referer,
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(8_000),
+    });
+    const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+    await response.body?.cancel();
+    return response.ok && contentType.startsWith('image/');
+  } catch {
+    return false;
+  }
+}
+
+async function selectLoadableImage(
+  documents: KakaoImageDocument[],
+  referer: string,
+): Promise<SelectedImage | null> {
+  for (const candidate of rankImageCandidates(documents, referer)) {
+    if (await isBrowserLoadableImage(candidate.imageUrl, referer)) return candidate;
+  }
+  return null;
 }
 
 async function searchKakaoImages(query: string, apiKey: string): Promise<KakaoImageDocument[]> {
@@ -127,6 +180,7 @@ async function searchKakaoImages(query: string, apiKey: string): Promise<KakaoIm
 async function main(): Promise<void> {
   const force = hasFlag('--force');
   const dryRun = hasFlag('--dry-run');
+  const repair = hasFlag('--repair');
   const apiKey = process.env.KAKAO_REST_API_KEY?.trim();
   if (!apiKey) {
     throw new Error(
@@ -145,21 +199,32 @@ async function main(): Promise<void> {
     noImage: 0,
     failed: 0,
   };
+  const referer = getImageReferer();
 
   console.log(
-    `${dryRun ? '[DRY RUN] ' : ''}${force ? '전체 재수집' : '이미지 없는 촬영지만 수집'} — ${locations.length}건\n`,
+    `${dryRun ? '[DRY RUN] ' : ''}${force ? '전체 재수집' : repair ? '기존 이미지 검증·복구' : '이미지 없는 촬영지만 수집'} — ${locations.length}건\n`,
   );
 
   for (const [index, location] of locations.entries()) {
     if (!force && location.imageUrl) {
-      summary.skipped += 1;
-      console.log(`[${index + 1}/${locations.length}] ${location.name} - SKIPPED`);
-      continue;
+      if (!repair) {
+        summary.skipped += 1;
+        console.log(`[${index + 1}/${locations.length}] ${location.name} - SKIPPED`);
+        continue;
+      }
+      if (await isBrowserLoadableImage(location.imageUrl, referer)) {
+        summary.skipped += 1;
+        console.log(`[${index + 1}/${locations.length}] ${location.name} - VALID`);
+        continue;
+      }
+      console.log(
+        `[${index + 1}/${locations.length}] ${location.name} - BROKEN, searching replacement`,
+      );
     }
 
     const query = `${location.name} ${location.address}`.replace(/\s+/g, ' ').trim();
     try {
-      const selected = selectImage(await searchKakaoImages(query, apiKey));
+      const selected = await selectLoadableImage(await searchKakaoImages(query, apiKey), referer);
       if (!selected) {
         summary.noImage += 1;
         console.log(`[${index + 1}/${locations.length}] ${location.name} - NO IMAGE`);
