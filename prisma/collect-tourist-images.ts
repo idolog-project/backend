@@ -88,12 +88,29 @@ function isUsableImageUrl(value: string | null, referer: string): value is strin
 }
 
 /**
+ * TourAPI는 간혹 http URL을 주지만 VisitKorea CDN은 동일 리소스를 HTTPS로 제공합니다.
+ * 임의의 외부 이미지 도메인에는 적용하지 않아 mixed content·오매칭을 만들지 않습니다.
+ */
+function upgradeTrustedImageUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'http:' && url.hostname === 'tong.visitkorea.or.kr') {
+      url.protocol = 'https:';
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 충분한 해상도의 사진을 우선 선택하되, 검색 결과가 적을 때는 유효한 원본 이미지로 완화합니다.
  */
 function rankImageCandidates(documents: KakaoImageDocument[], referer: string): SelectedImage[] {
   const candidates = documents
     .map((document) => {
-      const imageUrl = text(document.image_url);
+      const imageUrl = upgradeTrustedImageUrl(text(document.image_url));
       if (!isUsableImageUrl(imageUrl, referer)) return null;
       return {
         imageUrl,
