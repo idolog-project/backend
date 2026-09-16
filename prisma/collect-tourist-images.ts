@@ -268,7 +268,14 @@ async function main(): Promise<void> {
 
     const query = `${location.name} ${location.address}`.replace(/\s+/g, ' ').trim();
     try {
-      const selected = await selectLoadableImage(await searchKakaoImages(query, apiKey), referer);
+      let selected = await selectLoadableImage(await searchKakaoImages(query, apiKey), referer);
+      // 상세 주소가 오래됐거나 검색 색인과 다르면 장소명 단독 검색이 더 나은 후보를 돌려줄 수 있습니다.
+      // 정확 검색에서 유효한 원본을 찾지 못했을 때만 보조 검색으로 사용합니다.
+      const fallbackQuery = location.name.trim();
+      if (!selected && fallbackQuery && fallbackQuery !== query) {
+        selected = await selectLoadableImage(await searchKakaoImages(fallbackQuery, apiKey), referer);
+        if (selected) console.log(`  fallback query: ${fallbackQuery}`);
+      }
       if (!selected) {
         summary.noImage += 1;
         if (repair && clearBroken && location.imageUrl) {
