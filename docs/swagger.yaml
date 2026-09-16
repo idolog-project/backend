@@ -330,7 +330,7 @@ components:
     FilmingLocation:
       type: object
       required:
-        [id, name, category, address, latitude, longitude, imageUrl, description, musicVideos]
+        [id, name, category, address, latitude, longitude, imageUrl, imageSource, imageSourceUrl, description, musicVideos]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -339,6 +339,8 @@ components:
         latitude: { type: number, format: double }
         longitude: { type: number, format: double }
         imageUrl: { type: string, format: uri, nullable: true }
+        imageSource: { type: string, nullable: true, example: Daum }
+        imageSourceUrl: { type: string, format: uri, nullable: true }
         description: { type: string, nullable: true }
         musicVideos:
           type: array

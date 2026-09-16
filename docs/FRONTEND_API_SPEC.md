@@ -162,6 +162,8 @@ DB에 저장한 refresh token 해시와 브라우저 cookie를 함께 삭제한�
   "latitude": 37.8983,
   "longitude": 128.8322,
   "imageUrl": "https://...",
+  "imageSource": "Daum",
+  "imageSourceUrl": "https://...",
   "description": "촬영지 설명",
   "musicVideos": [
     {

@@ -18,6 +18,8 @@ export type FilmingLocationResponse = {
   latitude: number;
   longitude: number;
   imageUrl: string | null;
+  imageSource: string | null;
+  imageSourceUrl: string | null;
   description: string | null;
   musicVideos: {
     id: number;
@@ -44,6 +46,8 @@ export function toFilmingLocationResponse(row: LocationRow): FilmingLocationResp
     latitude: row.latitude,
     longitude: row.longitude,
     imageUrl: row.imageUrl,
+    imageSource: row.imageSource,
+    imageSourceUrl: row.imageSourceUrl,
     description: row.description,
     musicVideos: row.musicVideos.map(({ musicVideo }) => ({
       id: Number(musicVideo.id),

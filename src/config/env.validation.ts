@@ -25,6 +25,7 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
     RECOMMENDATION_STANDALONE_ENABLED: Joi.boolean().default(false),
     TOUR_API_SERVICE_KEY: Joi.string().required(),
     KAKAO_MOBILITY_API_KEY: Joi.string().trim().empty('').optional(),
+    KAKAO_REST_API_KEY: Joi.string().trim().empty('').optional(),
     GOOGLE_MAPS_API_KEY: Joi.string().required(),
   }).unknown(true);
 

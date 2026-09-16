@@ -84,6 +84,8 @@ model FilmingLocation {
   phoneNumber     String?
   sourceUpdatedAt DateTime?
   imageUrl        String?
+  imageSource     String?
+  imageSourceUrl  String?
   musicVideos     MusicVideoFilmingLocation[]
   savedCourses    SavedCourse[]
   createdAt       DateTime                    @default(now())
