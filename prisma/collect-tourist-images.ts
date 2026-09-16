@@ -7,6 +7,7 @@ import { PrismaClient } from '@prisma/client';
  *   npm run collect:tourist-images -- --dry-run
  *   npm run collect:tourist-images -- --force
  *   npm run collect:tourist-images -- --repair --dry-run
+ *   npm run collect:tourist-images -- --repair --clear-broken
  *
  * 이미지 파일을 내려받거나 저장하지 않고, 검색 결과가 가리키는 원본 URL과 출처만 DB에 기록합니다.
  */
@@ -42,6 +43,7 @@ type Summary = {
   success: number;
   skipped: number;
   noImage: number;
+  cleared: number;
   failed: number;
 };
 
@@ -218,6 +220,10 @@ async function main(): Promise<void> {
   const force = hasFlag('--force');
   const dryRun = hasFlag('--dry-run');
   const repair = hasFlag('--repair');
+  const clearBroken = hasFlag('--clear-broken');
+  if (clearBroken && !repair) {
+    throw new Error('--clear-broken 은 기존 URL을 검증하는 --repair 와 함께 사용해야 합니다.');
+  }
   const apiKey = process.env.KAKAO_REST_API_KEY?.trim();
   if (!apiKey) {
     throw new Error(
@@ -234,12 +240,13 @@ async function main(): Promise<void> {
     success: 0,
     skipped: 0,
     noImage: 0,
+    cleared: 0,
     failed: 0,
   };
   const referer = getImageReferer();
 
   console.log(
-    `${dryRun ? '[DRY RUN] ' : ''}${force ? '전체 재수집' : repair ? '기존 이미지 검증·복구' : '이미지 없는 촬영지만 수집'} — ${locations.length}건\n`,
+    `${dryRun ? '[DRY RUN] ' : ''}${force ? '전체 재수집' : repair ? '기존 이미지 검증·복구' : '이미지 없는 촬영지만 수집'}${clearBroken ? '·복구 불가 URL 비우기' : ''} — ${locations.length}건\n`,
   );
 
   for (const [index, location] of locations.entries()) {
@@ -264,7 +271,24 @@ async function main(): Promise<void> {
       const selected = await selectLoadableImage(await searchKakaoImages(query, apiKey), referer);
       if (!selected) {
         summary.noImage += 1;
-        console.log(`[${index + 1}/${locations.length}] ${location.name} - NO IMAGE`);
+        if (repair && clearBroken && location.imageUrl) {
+          summary.cleared += 1;
+          console.log(
+            `[${index + 1}/${locations.length}] ${location.name} - NO IMAGE, ${dryRun ? 'WOULD CLEAR BROKEN URL' : 'CLEARED BROKEN URL'}`,
+          );
+          if (!dryRun) {
+            await prisma.filmingLocation.update({
+              where: { id: location.id },
+              data: {
+                imageUrl: null,
+                imageSource: null,
+                imageSourceUrl: null,
+              },
+            });
+          }
+        } else {
+          console.log(`[${index + 1}/${locations.length}] ${location.name} - NO IMAGE`);
+        }
       } else {
         summary.success += 1;
         console.log(`[${index + 1}/${locations.length}] ${location.name} - SUCCESS`);
@@ -300,6 +324,7 @@ async function main(): Promise<void> {
   console.log(`Success: ${summary.success}`);
   console.log(`Skipped: ${summary.skipped}`);
   console.log(`No Image: ${summary.noImage}`);
+  console.log(`Cleared broken URL: ${summary.cleared}`);
   console.log(`Failed: ${summary.failed}`);
 }
 
