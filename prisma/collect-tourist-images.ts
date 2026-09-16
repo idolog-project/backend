@@ -15,6 +15,9 @@ const prisma = new PrismaClient();
 const KAKAO_IMAGE_SEARCH_URL = 'https://dapi.kakao.com/v2/search/image';
 /** Daum 검색 쿼터를 보수적으로 사용합니다. */
 const REQUEST_DELAY_MS = 350;
+/** 장소 하나당 외부 원본 서버를 과도하게 두드리지 않도록 후보 검증 수를 제한합니다. */
+const MAX_IMAGE_URL_PROBES = 3;
+const KAKAO_MAX_ATTEMPTS = 3;
 const MIN_WIDTH = 500;
 const MIN_HEIGHT = 300;
 
@@ -162,7 +165,7 @@ async function selectLoadableImage(
   documents: KakaoImageDocument[],
   referer: string,
 ): Promise<SelectedImage | null> {
-  for (const candidate of rankImageCandidates(documents, referer)) {
+  for (const candidate of rankImageCandidates(documents, referer).slice(0, MAX_IMAGE_URL_PROBES)) {
     if (await isBrowserLoadableImage(candidate.imageUrl, referer)) return candidate;
   }
   return null;
@@ -174,24 +177,41 @@ async function searchKakaoImages(query: string, apiKey: string): Promise<KakaoIm
   url.searchParams.set('sort', 'accuracy');
   url.searchParams.set('size', '10');
 
-  const response = await fetch(url, {
-    headers: { Authorization: `KakaoAK ${apiKey}` },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Kakao 이미지 검색 HTTP ${response.status}: ${body.slice(0, 200)}`);
-  }
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= KAKAO_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        headers: { Authorization: `KakaoAK ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        const error = new Error(`Kakao 이미지 검색 HTTP ${response.status}: ${body.slice(0, 200)}`);
+        // 429와 5xx는 잠시 기다린 뒤 재시도합니다.
+        if ((response.status === 429 || response.status >= 500) && attempt < KAKAO_MAX_ATTEMPTS) {
+          await sleep(1_000 * 2 ** (attempt - 1));
+          continue;
+        }
+        throw error;
+      }
 
-  const body: unknown = await response.json();
-  if (!body || typeof body !== 'object' || !('documents' in body)) {
-    throw new Error('Kakao 이미지 검색 응답 형식이 올바르지 않습니다.');
+      const body: unknown = await response.json();
+      if (!body || typeof body !== 'object' || !('documents' in body)) {
+        throw new Error('Kakao 이미지 검색 응답 형식이 올바르지 않습니다.');
+      }
+      const documents = (body as { documents?: unknown }).documents;
+      if (!Array.isArray(documents)) return [];
+      return documents.filter(
+        (document): document is KakaoImageDocument => !!document && typeof document === 'object',
+      );
+    } catch (error) {
+      lastError = error;
+      if (attempt < KAKAO_MAX_ATTEMPTS) {
+        await sleep(1_000 * 2 ** (attempt - 1));
+      }
+    }
   }
-  const documents = (body as { documents?: unknown }).documents;
-  if (!Array.isArray(documents)) return [];
-  return documents.filter(
-    (document): document is KakaoImageDocument => !!document && typeof document === 'object',
-  );
+  throw new Error(`Kakao 이미지 검색 재시도 실패: ${String(lastError)}`);
 }
 
 async function main(): Promise<void> {
